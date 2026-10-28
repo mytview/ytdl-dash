@@ -1,0 +1,6 @@
+.git
+data/
+media/
+*.png
+CLAUDE.local.md
+docs/

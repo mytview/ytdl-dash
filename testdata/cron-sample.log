@@ -1,0 +1,52 @@
+
++++ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++++ date -u +%FT%TZ
++++ echo 'Cron started, running ytdl-sub... (2026-10-26T16:02:40Z)'
+Cron started, running ytdl-sub... (2026-10-26T16:02:40Z)
++++ cd /config
++++ timeout -k 2m 110m ytdl-sub -l verbose --config=config.yaml sub subscriptions.yaml
+[ytdl-sub] Validating subscriptions...
+[ytdl-sub:preset] Throttle protection is enabled. Disable using the override variable `enable_throttle_protection: False`
+[ytdl-sub] Beginning subscription download for Optimum
+[ytdl-sub:downloader] Beginning download of https://www.youtube.com/@optimumtech
+[ytdl-sub:yt-dlp] [youtube:tab] Playlist Optimum - Videos: Downloading 1 items of 1
+[ytdl-sub:yt-dlp] [download] Downloading item 1 of 1
+[ytdl-sub:yt-dlp] [youtube] abcdefghijk: Downloading webpage
+No files changed for Optimum
+[ytdl-sub] Beginning subscription download for Fireship
+[ytdl-sub:yt-dlp] ERROR: [youtube] zzzzzzzzzzz: Join this channel to get access to members-only content like this video, and other exclusive perks.
+[ytdl-sub] 
+[ytdl-sub] Download Summary:
+Optimum            0 0 0      1 ✔
+Fireship          +2 0 -1    12 ✔
+Dead Channel       0 0 0      0 ✘
+Total: 3          +2 0 -1     13 Error
+++ rc=1
+++ '[' 1 -eq 0 ']'
+++ '[' 1 -eq 124 ']'
+++ '[' 1 -eq 137 ']'
+++ tail -n 20 /config/.cron.log
+++ grep -q 'Cannot run two instances'
+++ touch /config/.last-success
++++ date -u +%FT%TZ
+++ echo 'ytdl-sub finished with errors, code 1 (2026-10-26T16:40:12Z)'
+ytdl-sub finished with errors, code 1 (2026-10-26T16:40:12Z)
+Cron started, running ytdl-sub... (2026-10-26T17:10:00Z)
+[ytdl-sub] Validating subscriptions...
+Cannot run two instances of ytdl-sub with the same working directory
+++ echo 'ytdl-sub skipped: the previous run still holds the lock (2026-10-26T17:10:02Z)'
+ytdl-sub skipped: the previous run still holds the lock (2026-10-26T17:10:02Z)
+Cron started, running ytdl-sub... (2026-10-26T18:10:00Z)
+[ytdl-sub] Validating subscriptions...
+[ytdl-sub] Beginning subscription download for Optimum
+Cron started, running ytdl-sub... (2026-10-26T20:10:00Z)
+[ytdl-sub] Validating subscriptions...
++++ echo 'RUN TIMED OUT: ytdl-sub killed after 110 minutes (2026-10-26T22:00:03Z); the lock is free again and the next slot runs'
+RUN TIMED OUT: ytdl-sub killed after 110 minutes (2026-10-26T22:00:03Z); the lock is free again and the next slot runs
+Cron started, running ytdl-sub... (2026-10-27T00:10:00Z)
+[ytdl-sub] Validating subscriptions...
+[ytdl-sub:yt-dlp] ERROR: [youtube] yyyyyyyyyyy: Sign in to confirm you’re not a bot. Use --cookies-from-browser or --cookies for the authentication.
+[ytdl-sub] Download Summary:
+Optimum            0 0 0      1 ✔
+Total: 1           0 0 0      1 Success
+ytdl-sub finished OK (2026-10-27T00:21:30Z)

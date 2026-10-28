@@ -1,0 +1,38 @@
+# A subscriptions file in the grouped form: one preset, `= Group | = Rating` lines that become the Plex
+# collections, 24 channels. INSTANCE-specific tests read this one; the shapes test reads subscriptions-generic.yaml.
+# A channel moves between recent (pruned after 30 days) and keep by moving its line; the archive lives next to
+# the videos, so nothing re-downloads.
+
+recent:
+  = Tech | = TV-Y:
+    "Solder Hour": "https://www.youtube.com/@solderhour"
+    "Kernel Notes": "https://www.youtube.com/@kernelnotes"
+    "Byte Garden": "https://www.youtube.com/@bytegarden"
+    "Bench Power": "https://www.youtube.com/@benchpower"
+    "Fan Curve": "https://www.youtube.com/@fancurve"
+    "Flash Memory Lane": "https://www.youtube.com/@flashmemorylane"
+    "Rack and Stack": "https://www.youtube.com/@rackandstack"
+    "Nightly Build": "https://www.youtube.com/@nightlybuild"
+  = Dev | = TV-Y:
+    "Null Pointer": "https://www.youtube.com/@nullpointer"
+    "Merge Conflict": "https://www.youtube.com/@mergeconflict"
+    "Stack Trace": "https://www.youtube.com/@stacktrace"
+    "Semver Sunday": "https://www.youtube.com/@semversunday"
+    "Off By One": "https://www.youtube.com/@offbyone"
+    "Garbage Collector": "https://www.youtube.com/@garbagecollector"
+    "Cold Cache": "https://www.youtube.com/@coldcache"
+  = Science | = TV-G:
+    "Orbit Notes": "https://www.youtube.com/@orbitnotes"
+    "Benchtop Chemistry": "https://www.youtube.com/@benchtopchem"
+    "Field Geology": "https://www.youtube.com/@fieldgeology"
+    "Tide Tables": "https://www.youtube.com/@tidetables"
+    "Quiet Physics": "https://www.youtube.com/@quietphysics"
+  = Cooking | = TV-G:
+    "Slow Simmer": "https://www.youtube.com/@slowsimmer"
+    "Sourdough Sunday": "https://www.youtube.com/@sourdoughsunday"
+    "Cast Iron Club": "https://www.youtube.com/@castironclub"
+    "Pantry Raid": "https://www.youtube.com/@pantryraid"
+
+# keep:
+#   = Knowledge | = TV-Y:
+#     "Example": "https://www.youtube.com/@example"

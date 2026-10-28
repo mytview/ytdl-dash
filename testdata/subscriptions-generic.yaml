@@ -1,0 +1,25 @@
+# shapes seen in ytdl-sub's docs and the wild
+__preset__:
+  overrides:
+    tv_show_directory: "/tv_shows"
+
+Plex TV Show by Date:
+  = Documentaries:
+    "Plain Channel": "https://www.youtube.com/@plain"
+  = Music | = TV-G:
+    "Two Values": "https://www.youtube.com/@two"
+  "Direct Under Preset": "https://www.youtube.com/@direct"
+  "Mapping Form":
+    download: "https://www.youtube.com/@mapping"
+    overrides:
+      tv_show_name: "Mapping Form"
+  "Overrides URL":
+    overrides:
+      url: "https://www.youtube.com/@overrides"
+  Nested Preset | Second Preset:
+    "Nested Channel": "https://www.youtube.com/@nested"
+  "List Form":
+    - "https://www.youtube.com/@list1"
+    - "https://www.youtube.com/@list2"
+  ~:
+    some_override: 1

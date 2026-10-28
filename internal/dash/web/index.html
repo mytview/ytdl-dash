@@ -1,0 +1,328 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>{{TITLE}}</title>
+<style>
+  :root { color-scheme: light;
+    --bg: #f9f9f7; --panel: #fcfcfb; --fg: #0b0b0b; --fg2: #52514e; --muted: #898781; --grid: #e1e0d9; --axis: #c3c2b7; --line: rgba(11,11,11,.12);
+    --ok: #006300; --warn: #8a5a00; --bad: #c42f2f; --sel: #2a78d6; --barmuted: #c3c2b7; --popover: #ffffff; --shadow: 0 4px 16px rgba(0,0,0,.14);
+    --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100; --s5: #e87ba4; --s6: #008300; --s7: #6250d6; --s8: #e34948; --radius: 8px; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { color-scheme: dark;
+    --bg: #0d0d0d; --panel: #1a1a19; --fg: #f0efec; --fg2: #c3c2b7; --muted: #898781; --grid: #2c2c2a; --axis: #383835; --line: rgba(255,255,255,.12);
+    --ok: #0ca30c; --warn: #fab219; --bad: #e66767; --sel: #3987e5; --barmuted: #383835; --popover: #232322; --shadow: 0 4px 16px rgba(0,0,0,.5);
+    --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --s5: #d55181; --s6: #008300; --s7: #9085e9; --s8: #e66767; } }
+  :root[data-theme="dark"] { color-scheme: dark;
+    --bg: #0d0d0d; --panel: #1a1a19; --fg: #f0efec; --fg2: #c3c2b7; --muted: #898781; --grid: #2c2c2a; --axis: #383835; --line: rgba(255,255,255,.12);
+    --ok: #0ca30c; --warn: #fab219; --bad: #e66767; --sel: #3987e5; --barmuted: #383835; --popover: #232322; --shadow: 0 4px 16px rgba(0,0,0,.5);
+    --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --s5: #d55181; --s6: #008300; --s7: #9085e9; --s8: #e66767; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  .yf { max-width: 1400px; margin: 0 auto; padding: 20px 16px 40px; display: grid; gap: 20px; }
+  h1 { font-size: 26px; font-weight: 600; margin: 0 0 6px; }
+  h2 { font-size: 17px; font-weight: 600; margin: 0; }
+  .note { color: var(--fg2); font-size: 13px; margin: 0; }
+  .take { margin: 0 0 6px; }
+  .take b { font-weight: 600; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; display: grid; gap: 8px; min-width: 0; align-content: start; }
+  .card > * { min-width: 0; }   /* a wide table scrolls inside its box instead of widening the page */
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 1fr)); gap: 12px; }
+  .grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 24rem), 1fr)); gap: 12px; }
+  .inst { cursor: pointer; }
+  .inst.sel { outline: 2px solid var(--sel); }
+  .inst-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+  .inst-name { font-size: 17px; font-weight: 600; }
+  .pill { font-size: 12px; border-radius: 999px; padding: 0 .6em; border: 1px solid var(--line); white-space: nowrap; }
+  .pill.ok { color: var(--ok); } .pill.warn { color: var(--warn); } .pill.bad { color: var(--bad); }
+  .kv { display: grid; grid-template-columns: 1fr auto; gap: .15em 8px; font-size: 13px; margin: 0; }
+  .kv dt { color: var(--fg2); margin: 0; } .kv dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
+  .big { font-size: 30px; line-height: 1.1; }
+  .chart { min-height: 220px; position: relative; }
+  .chart svg { display: block; }
+  .tip { position: absolute; pointer-events: none; background: var(--popover); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); padding: 6px 10px; font-size: 12px; white-space: nowrap; z-index: 2; }
+  .tip .h { color: var(--fg2); margin-bottom: 2px; }
+  .legend { display: flex; flex-wrap: wrap; gap: 10px; font-size: 12px; color: var(--fg2); }
+  .sw { display: inline-block; width: .7em; height: .7em; border-radius: 2px; margin-right: .3em; vertical-align: middle; }
+  .tablebox { overflow: auto; max-height: 32rem; }
+  #runs .tablebox { max-height: 15rem; }   /* keeps the chart row as tall as the chart, the rest scrolls */
+  table { border-collapse: collapse; width: 100%; font-size: 13px; font-variant-numeric: tabular-nums; }
+  th { position: sticky; top: 0; background: var(--panel); text-align: left; padding: .35em .5em; border-bottom: 1px solid var(--line); white-space: nowrap; font-weight: 600; color: var(--fg2); }
+  th button { all: unset; cursor: pointer; } th button:focus-visible { outline: 2px solid var(--sel); }
+  td { padding: .3em .5em; border-bottom: 1px solid var(--line); white-space: nowrap; vertical-align: middle; }
+  td.num, th.num { text-align: right; }
+  .bar { display: inline-block; height: .7em; border-radius: 3px; background: var(--barmuted); vertical-align: middle; margin-right: .4em; }
+  .st.active { color: var(--ok); } .st.quiet, .st.unchecked { color: var(--warn); } .st.silent, .st.never, .st.failed { color: var(--bad); }
+  .r-ok { color: var(--ok); } .r-error, .r-timeout, .r-killed { color: var(--bad); } .r-lock { color: var(--warn); } .r-running { color: var(--fg2); }
+  td a { color: inherit; text-decoration: underline; text-decoration-color: var(--axis); }
+  .controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip { font: inherit; font-size: 12px; border: 1px solid var(--line); border-radius: 999px; padding: .15em .7em; background: transparent; color: var(--fg); cursor: pointer; }
+  .chip.on { background: var(--sel); color: #fff; border-color: transparent; }
+  input[type=search] { font: inherit; font-size: 13px; padding: .25em .6em; border: 1px solid var(--line); border-radius: var(--radius); background: var(--bg); color: var(--fg); min-width: 12rem; }
+  .meta { display: flex; flex-wrap: wrap; gap: 4px 14px; }
+  .acts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+  .acts .chip { font-size: 11px; }
+  .acts .chip:disabled { opacity: .5; cursor: default; }
+  #cmd-note:empty { display: none; }
+  .stale { color: var(--warn); }
+  .err { color: var(--bad); }
+  .toggle { font: inherit; font-size: 12px; color: var(--fg2); background: none; border: 0; padding: 0; cursor: pointer; text-decoration: underline; }
+  @media (max-width: 640px) { .hide-narrow { display: none; } }
+</style>
+</head>
+<body>
+<main class="yf">
+  <header id="head">
+    <h1>{{TITLE}}</h1>
+    <p class="take" id="take">Loading…</p>
+    <p class="note meta"><span id="updated"></span><span id="cmd-note"></span><span id="warn-note" hidden></span><span>From the agent beside each instance: its cron log, its download archives and its container. Click an instance to filter the channels.</span></p>
+  </header>
+
+  <section id="instances" class="cards"></section>
+
+  <section class="grid2">
+    <div class="card" id="daily">
+      <h2>New videos per day</h2>
+      <p class="note">Last 30 days, by the upload date each archive records, stacked by instance. <button class="toggle" id="daily-toggle" type="button">Show as table</button></p>
+      <div class="legend" id="daily-legend"></div>
+      <div class="chart" id="daily-chart"></div>
+      <div class="tablebox" id="daily-table" hidden></div>
+    </div>
+    <div class="card" id="runs">
+      <h2>Runs</h2>
+      <p class="note">Every cron slot in the last 7 days: how long it took and what it changed. killed = the container was recreated mid-run; lock = the previous run was still going.</p>
+      <div class="tablebox">
+        <table>
+          <thead><tr><th>Instance</th><th>Started</th><th class="num">Minutes</th><th>Result</th><th class="num">Added</th><th class="num">Removed</th><th class="num hide-narrow">Kept</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section class="card" id="channels">
+    <h2>Channels</h2>
+    <p class="note">Status from the videos on disk and the instance's last Download Summary: active = a video downloaded in the last 30 days, quiet = 30 to 90 days, silent = older, never = no video on disk, failed = the last run reported the channel with a cross, unchecked = missing from the last summary. Kept = videos the archive still tracks (pruned with the files). The handle opens the channel on YouTube. Click a header to sort.</p>
+    <div class="controls">
+      <div class="chips" id="chip-instance"></div>
+      <div class="chips" id="chip-status"></div>
+      <input type="search" id="search" placeholder="Search channels" aria-label="Search channels">
+      <button class="chip" id="reset" type="button">Reset</button>
+      <span class="note" id="count"></span>
+    </div>
+    <div class="tablebox">
+      <table id="chan-table">
+        <thead><tr>
+          <th><button type="button" data-sort="name" data-label="Channel">Channel</button></th>
+          <th><button type="button" data-sort="handle" data-label="YouTube">YouTube</button></th>
+          <th><button type="button" data-sort="instance" data-label="Instance">Instance</button></th>
+          <th class="hide-narrow"><button type="button" data-sort="group" data-label="Group">Group</button></th>
+          <th class="hide-narrow"><button type="button" data-sort="preset" data-label="Keep">Keep</button></th>
+          <th><button type="button" data-sort="last_file" data-label="Last video">Last video</button></th>
+          <th class="num"><button type="button" data-sort="days_since_file" data-label="Days">Days</button></th>
+          <th class="num"><button type="button" data-sort="files30" data-label="30 d">30 d</button></th>
+          <th class="num hide-narrow"><button type="button" data-sort="files" data-label="Files">Files</button></th>
+          <th class="num"><button type="button" data-sort="gb" data-label="GB">GB</button></th>
+          <th class="num hide-narrow"><button type="button" data-sort="kept" data-label="Kept">Kept</button></th>
+          <th class="hide-narrow"><button type="button" data-sort="checked_at" data-label="Last check">Last check</button></th>
+          <th><button type="button" data-sort="status" data-label="Status">Status</button></th>
+        </tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </section>
+</main>
+<script>
+'use strict';
+let INST = [];
+const SERIES = ['var(--s1)', 'var(--s2)', 'var(--s3)', 'var(--s4)', 'var(--s5)', 'var(--s6)', 'var(--s7)', 'var(--s8)'];
+const POLL = {{POLL}} * 1000;
+const FILES = ['meta', 'instances', 'channels', 'runs', 'daily'];
+const TEXT_SORT = ['name', 'handle', 'instance', 'group', 'preset', 'status', 'last_file', 'checked_at'];
+const D = { errors: {} };
+const state = { instance: null, status: null, q: '', sort: 'gb', dir: -1, dailyTable: false };
+const $ = (s, r) => (r || document).querySelector(s);
+const el = (tag, attrs, text) => { const e = document.createElement(tag); if (attrs) for (const [k, v] of Object.entries(attrs)) { if (k === 'class') e.className = v; else e.setAttribute(k, v); } if (text != null) e.textContent = text; return e; };
+const svgEl = (tag, attrs) => { const e = document.createElementNS('http://www.w3.org/2000/svg', tag); for (const [k, v] of Object.entries(attrs || {})) e.setAttribute(k, v); return e; };
+const num = (v) => (v == null || v === '' || Number.isNaN(Number(v)) ? null : Number(v));
+const fmt = (v, d = 0) => (num(v) == null ? '' : num(v).toLocaleString(undefined, { minimumFractionDigits: d, maximumFractionDigits: d }));
+const fmtSigned = (v) => (num(v) == null ? '' : (num(v) > 0 ? '+' : '') + fmt(v));
+const isDate = (s) => typeof s === 'string' && s.length === 10;
+const fmtDay = (s) => (s ? new Date(isDate(s) ? s + 'T00:00:00Z' : s).toLocaleDateString(undefined, isDate(s) ? { day: 'numeric', month: 'short', timeZone: 'UTC' } : { day: 'numeric', month: 'short' }) : '');
+const fmtTime = (s) => (s ? new Date(s).toLocaleString(undefined, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '');
+const ago = (s) => { const m = Math.round((Date.now() - new Date(s)) / 60000); return m < 1 ? 'just now' : m < 60 ? m + ' min ago' : m < 48 * 60 ? Math.round(m / 60) + ' h ago' : Math.round(m / 1440) + ' days ago'; };
+const ytUrl = (u) => (/^https:\/\/(www\.)?youtube\.com\//.test(u || '') ? u : null);
+
+async function load() {
+  await Promise.all(FILES.map(async (f) => {
+    try { const r = await fetch('data/' + f + '.json', { cache: 'no-store' }); if (!r.ok) throw new Error('HTTP ' + r.status); D[f] = await r.json(); delete D.errors[f]; }
+    catch (e) { D.errors[f] = e.message || String(e); }
+  }));
+  if (Array.isArray(D.instances)) INST = D.instances.map((i) => i.instance);
+  redraw();
+}
+
+function summary() {
+  const I = D.instances || [], C = D.channels || [];
+  return { instances: I.length, healthy: I.filter((i) => i.health === 'healthy').length, failed24: I.reduce((s, i) => s + (num(i.failed_24h) || 0), 0),
+    videos30: C.reduce((s, c) => s + (num(c.files30) || 0), 0), gb30: Math.round(C.reduce((s, c) => s + (num(c.gb30) || 0), 0) * 10) / 10,
+    never: C.filter((c) => c.status === 'never').length, quiet: C.filter((c) => ['quiet', 'silent', 'failed', 'unchecked'].includes(c.status)).length };
+}
+function drawTake() {
+  const t = $('#take'); t.replaceChildren();
+  if (!D.instances || !D.channels) { const e = D.errors.instances || D.errors.channels; t.textContent = e ? 'No data yet: ' + e : 'Loading…'; if (e) t.className = 'take err'; return; }
+  t.className = 'take';
+  const s = summary();
+  [[s.healthy + ' of ' + s.instances, ' instances healthy, '], [fmt(s.failed24), ' failed runs in the last 24 h, '], [fmt(s.videos30), ' videos and '], [fmt(s.gb30, 1), ' GB in 30 days; '],
+   [fmt(s.never), ' channels have never downloaded and '], [fmt(s.quiet), ' are quiet, silent, failed or unchecked.']].forEach(([b, rest]) => t.append(el('b', null, b), document.createTextNode(rest)));
+}
+function drawMeta() {
+  const u = $('#updated'), w = $('#warn-note'); u.className = ''; w.hidden = true; w.textContent = '';
+  const m = D.meta;
+  if (!m) { u.textContent = D.errors.meta ? 'No collection yet (' + D.errors.meta + ').' : ''; u.className = 'err'; return; }
+  u.textContent = 'Updated ' + fmtTime(m.generated) + ', ' + ago(m.generated) + (num(m.seconds) >= 0.1 ? ' (took ' + fmt(m.seconds, 1) + ' s)' : '') + (Array.isArray(m.agents) && m.agents.length ? ', ' + m.agents.length + (m.agents.length === 1 ? ' agent' : ' agents') : '') + '.';
+  if ((Date.now() - new Date(m.generated)) / 60000 > 15) { u.className = 'stale'; u.textContent += ' The dashboard has not polled for over 15 minutes.'; }
+  if (Array.isArray(m.warnings) && m.warnings.length) { w.hidden = false; w.className = 'stale'; w.textContent = m.warnings.length + (m.warnings.length > 1 ? ' warnings: ' : ' warning: ') + m.warnings.join(' · '); }
+}
+function pillClass(h) { return h === 'healthy' ? 'ok' : h === 'starting' || h === 'unknown' ? 'warn' : 'bad'; }
+function drawInstances() {
+  const box = $('#instances'); box.replaceChildren();
+  if (!Array.isArray(D.instances)) return;
+  D.instances.forEach((i) => {
+    const card = el('article', { class: 'card inst' + (state.instance === i.instance ? ' sel' : ''), id: 'inst-' + i.instance });
+    const head = el('div', { class: 'inst-head' }); head.append(el('span', { class: 'inst-name' }, i.instance), el('span', { class: 'pill ' + pillClass(i.health) }, i.health || 'unknown'));
+    const dl = el('dl', { class: 'kv' });
+    [['exit', i.exit], ['channels', fmt(i.channels)], ['never / silent / failed', fmt(i.silent)], ['GB in 30 d', fmt(i.gb30, 1)], ['latest slot', i.last_result], ['last completed, minutes', fmt(i.last_minutes)],
+     ['added / removed', i.last_added == null && i.last_removed == null ? '' : fmtSigned(i.last_added) + ' / ' + fmt(i.last_removed)], ['failed, 24 h', fmt(i.failed_24h)]]
+      .forEach(([k, v]) => dl.append(el('dt', null, k), el('dd', null, v == null ? '' : String(v))));
+    card.append(head, el('div', { class: 'big' }, fmt(i.videos30)), el('p', { class: 'note' }, 'videos downloaded in 30 days' + (i.host ? ' · ' + i.host : '')), dl);
+    const caps = Array.isArray(i.capabilities) ? i.capabilities : [];
+    if (caps.length) {
+      const acts = el('div', { class: 'acts' });
+      [['run', 'Run now'], ['stop', 'Stop'], ['reconnect', 'Reconnect VPN'], ['rescan', 'Rescan']].forEach(([cmd, label]) => {
+        if (!caps.includes(cmd)) return;
+        const b = el('button', { type: 'button', class: 'chip' }, label);
+        b.addEventListener('click', (ev) => { ev.stopPropagation(); command(i.instance, cmd, b); });
+        acts.append(b);
+      });
+      card.append(acts);
+    }
+    card.addEventListener('click', () => { state.instance = state.instance === i.instance ? null : i.instance; redraw(); });
+    box.append(card);
+  });
+}
+function niceTicks(max, count) {
+  const raw = Math.max(1, max) / count, mag = Math.pow(10, Math.floor(Math.log10(raw))), norm = raw / mag;
+  const step = Math.max(1, (norm <= 1 ? 1 : norm <= 2 ? 2 : norm <= 5 ? 5 : 10) * mag);
+  const ticks = []; let v = 0; for (;;) { ticks.push(v); if (v >= max) break; v += step; } return ticks;
+}
+function drawDaily() {
+  const box = $('#daily-chart'), leg = $('#daily-legend'), tb = $('#daily-table');
+  box.replaceChildren(); leg.replaceChildren(); tb.replaceChildren();
+  $('#daily-toggle').textContent = state.dailyTable ? 'Show as chart' : 'Show as table';
+  const rows = D.daily;
+  if (!Array.isArray(rows)) { box.hidden = false; tb.hidden = true; box.textContent = D.errors.daily ? 'daily.json: ' + D.errors.daily : 'Loading…'; return; }
+  INST.forEach((k, i) => { const l = el('span'); const s = el('span', { class: 'sw' }); s.style.background = SERIES[i]; l.append(s, document.createTextNode(k)); leg.append(l); });
+  tb.hidden = !state.dailyTable; box.hidden = state.dailyTable;
+  if (state.dailyTable) {
+    const t = el('table'), thead = el('thead'), hr = el('tr'), tbody = el('tbody');
+    hr.append(el('th', null, 'Day')); INST.forEach((k) => hr.append(el('th', { class: 'num' }, k))); hr.append(el('th', { class: 'num' }, 'Total')); thead.append(hr);
+    rows.forEach((r) => { const tr = el('tr'); tr.append(el('td', null, fmtDay(r.day))); let tot = 0; INST.forEach((k) => { const v = num(r[k]) || 0; tot += v; tr.append(el('td', { class: 'num' }, fmt(v))); }); tr.append(el('td', { class: 'num' }, fmt(tot))); tbody.append(tr); });
+    t.append(thead, tbody); tb.append(t); return;
+  }
+  const W = Math.max(280, box.clientWidth || 600), H = 220, m = { t: 10, r: 8, b: 26, l: 34 };
+  const cnt = rows.length, step = (W - m.l - m.r) / cnt, bw = Math.min(24, Math.max(3, step * 0.7));
+  const totals = rows.map((r) => INST.reduce((s, k) => s + (num(r[k]) || 0), 0));
+  const ticks = niceTicks(Math.max(1, ...totals), 4), yMax = ticks[ticks.length - 1];
+  const y = (v) => m.t + (H - m.t - m.b) * (1 - v / yMax);
+  const svg = svgEl('svg', { width: '100%', viewBox: `0 0 ${W} ${H}`, role: 'img', 'aria-label': 'New videos per day by instance' });
+  ticks.forEach((t) => {
+    if (t > 0) svg.append(svgEl('line', { x1: m.l, x2: W - m.r, y1: y(t), y2: y(t), stroke: 'var(--grid)' }));
+    const tx = svgEl('text', { x: m.l - 6, y: y(t) + 4, 'text-anchor': 'end', fill: 'var(--muted)', 'font-size': 11 }); tx.textContent = fmt(t); svg.append(tx);
+  });
+  svg.append(svgEl('line', { x1: m.l, x2: W - m.r, y1: y(0), y2: y(0), stroke: 'var(--axis)' }));
+  const tip = el('div', { class: 'tip' }); tip.hidden = true;
+  rows.forEach((r, i) => {
+    const cx = m.l + step * i + step / 2, x0 = cx - bw / 2;
+    if (i % 5 === 0 || i === cnt - 1) { const tx = svgEl('text', { x: cx, y: H - m.b + 15, 'text-anchor': 'middle', fill: 'var(--muted)', 'font-size': 11 }); tx.textContent = fmtDay(r.day); svg.append(tx); }
+    const segs = INST.map((k, si) => ({ k, si, v: num(r[k]) || 0 })).filter((s) => s.v > 0);
+    let acc = 0;
+    segs.forEach((s, j) => {
+      const yTop = y(acc + s.v), yBot = y(acc); acc += s.v;
+      const top = j === segs.length - 1;
+      let yt = yTop, h = yBot - yTop;
+      if (!top && h > 3) { yt += 2; h -= 2; }   // a 2px surface gap under the segment above
+      if (h < 1) h = 1;
+      const r4 = top ? Math.min(4, bw / 2, h) : 0;
+      const p = svgEl('path', { d: `M${x0},${yt + h} L${x0},${yt + r4} Q${x0},${yt} ${x0 + r4},${yt} L${x0 + bw - r4},${yt} Q${x0 + bw},${yt} ${x0 + bw},${yt + r4} L${x0 + bw},${yt + h} Z` });
+      p.style.fill = SERIES[s.si]; svg.append(p);
+    });
+    const hit = svgEl('rect', { x: m.l + step * i, y: m.t, width: step, height: H - m.t - m.b, fill: 'transparent', 'pointer-events': 'all' });
+    hit.addEventListener('mousemove', (ev) => {
+      tip.hidden = false; tip.replaceChildren(el('div', { class: 'h' }, new Date(r.day + 'T00:00:00Z').toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'short', timeZone: 'UTC' })));
+      let tot = 0; INST.forEach((k, si) => { const v = num(r[k]) || 0; if (!v) return; tot += v; const l = el('div'); const sw = el('span', { class: 'sw' }); sw.style.background = SERIES[si]; l.append(sw, document.createTextNode(k + ' ' + fmt(v))); tip.append(l); });
+      tip.append(el('div', null, tot ? 'total ' + fmt(tot) : 'nothing'));
+      const b = box.getBoundingClientRect(); tip.style.left = Math.max(0, Math.min(ev.clientX - b.left + 12, b.width - tip.offsetWidth - 4)) + 'px'; tip.style.top = Math.max(0, ev.clientY - b.top - tip.offsetHeight - 8) + 'px';
+    });
+    hit.addEventListener('mouseleave', () => { tip.hidden = true; });
+    svg.append(hit);
+  });
+  box.append(svg, tip);
+}
+function drawRuns() {
+  const tb = $('#runs tbody'); tb.replaceChildren();
+  if (!Array.isArray(D.runs)) { const tr = el('tr'); tr.append(el('td', { colspan: 7 }, D.errors.runs ? 'runs.json: ' + D.errors.runs : 'Loading…')); tb.append(tr); return; }
+  [...D.runs].sort((a, b) => (a.start < b.start ? 1 : -1)).filter((r) => !state.instance || r.instance === state.instance).forEach((r) => {
+    const tr = el('tr');
+    [[r.instance], [fmtTime(r.start)], [fmt(r.minutes), 'num'], [r.result, 'r-' + r.result], [fmtSigned(r.added), 'num'], [fmt(r.removed), 'num'], [fmt(r.kept), 'num hide-narrow']]
+      .forEach(([v, cls]) => tr.append(el('td', cls ? { class: cls } : null, v == null ? '' : String(v))));
+    tb.append(tr);
+  });
+}
+function chips(boxId, key, values) {
+  const box = $('#' + boxId); box.replaceChildren();
+  values.forEach((v) => { const b = el('button', { type: 'button', class: 'chip' + (state[key] === v ? ' on' : '') }, v); b.addEventListener('click', () => { state[key] = state[key] === v ? null : v; redraw(); }); box.append(b); });
+}
+function drawChannels() {
+  const tb = $('#chan-table tbody'); tb.replaceChildren();
+  chips('chip-instance', 'instance', INST); chips('chip-status', 'status', ['active', 'quiet', 'silent', 'never', 'failed', 'unchecked']);
+  const count = $('#count');
+  if (!Array.isArray(D.channels)) { count.textContent = D.errors.channels ? 'channels.json: ' + D.errors.channels : ''; return; }
+  const q = state.q.toLowerCase(), k = state.sort;
+  const rows = D.channels.filter((c) => (!state.instance || c.instance === state.instance) && (!state.status || c.status === state.status) && (!q || `${c.name} ${c.group || ''} ${c.handle || ''}`.toLowerCase().includes(q)));
+  rows.sort((a, b) => { const av = a[k] ?? -Infinity, bv = b[k] ?? -Infinity; return ((av < bv ? -1 : av > bv ? 1 : 0) * state.dir) || String(a.name).localeCompare(b.name); });
+  count.textContent = rows.length + ' of ' + D.channels.length;
+  const maxGb = Math.max(1, ...D.channels.map((c) => num(c.gb) || 0));
+  rows.forEach((c) => {
+    const tr = el('tr');
+    const tdLink = el('td'); const u = ytUrl(c.url); if (u) tdLink.append(el('a', { href: u, target: '_blank', rel: 'noopener' }, c.handle || u)); else tdLink.textContent = c.handle || '';
+    const tdGb = el('td', { class: 'num' }); const bar = el('span', { class: 'bar' }); bar.style.width = Math.round(60 * (num(c.gb) || 0) / maxGb) + 'px'; tdGb.append(bar, document.createTextNode(fmt(c.gb, 1)));
+    const check = c.check ? (c.check === 'ok' ? '✔ ' : '✘ ') + fmtTime(c.checked_at) + (num(c.check_added) ? ' +' + fmt(c.check_added) : '') : '';
+    tr.append(el('td', null, c.name), tdLink, el('td', null, c.instance), el('td', { class: 'hide-narrow' }, c.group || ''), el('td', { class: 'hide-narrow' }, c.preset === 'keep' ? 'keep' : ''),
+      el('td', null, fmtDay(c.last_file)), el('td', { class: 'num' }, c.days_since_file == null ? '' : fmt(c.days_since_file)), el('td', { class: 'num' }, fmt(c.files30)), el('td', { class: 'num hide-narrow' }, fmt(c.files)),
+      tdGb, el('td', { class: 'num hide-narrow' }, fmt(c.kept)), el('td', { class: 'hide-narrow' + (c.check === 'failed' ? ' st failed' : '') }, check), el('td', { class: 'st ' + (c.status || '') }, c.status || ''));
+    tb.append(tr);
+  });
+  document.querySelectorAll('#chan-table th button').forEach((b) => { const on = b.dataset.sort === state.sort; b.setAttribute('aria-sort', on ? (state.dir > 0 ? 'ascending' : 'descending') : 'none'); b.textContent = b.dataset.label + (on ? (state.dir > 0 ? ' ▲' : ' ▼') : ''); });
+}
+async function command(instance, cmd, button) {
+  if ((cmd === 'stop' || cmd === 'reconnect') && !confirm(cmd + ' on ' + instance + '?')) return;
+  const note = $('#cmd-note'); button.disabled = true; note.className = ''; note.textContent = instance + ': ' + cmd + '…';
+  try { const r = await fetch('api/' + encodeURIComponent(instance) + '/' + cmd, { method: 'POST' }); const j = await r.json().catch(() => ({})); note.textContent = instance + ': ' + (j.result || j.error || ('HTTP ' + r.status)); if (!r.ok) note.className = 'err'; }
+  catch (e) { note.textContent = instance + ': ' + e.message; note.className = 'err'; }
+  button.disabled = false; setTimeout(load, 4000);
+}
+function redraw() { drawMeta(); drawTake(); drawInstances(); drawDaily(); drawRuns(); drawChannels(); }
+document.querySelectorAll('#chan-table th button').forEach((b) => b.addEventListener('click', () => { if (state.sort === b.dataset.sort) state.dir = -state.dir; else { state.sort = b.dataset.sort; state.dir = TEXT_SORT.includes(b.dataset.sort) ? 1 : -1; } drawChannels(); }));
+$('#search').addEventListener('input', (e) => { state.q = e.target.value; drawChannels(); });
+$('#reset').addEventListener('click', () => { state.instance = null; state.status = null; state.q = ''; $('#search').value = ''; redraw(); });
+$('#daily-toggle').addEventListener('click', () => { state.dailyTable = !state.dailyTable; drawDaily(); });
+let resizeTimer; window.addEventListener('resize', () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(drawDaily, 150); });
+document.addEventListener('visibilitychange', () => { if (!document.hidden) load(); });
+setInterval(load, POLL);
+load();
+</script>
+</body>
+</html>
