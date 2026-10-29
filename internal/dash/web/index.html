@@ -235,7 +235,7 @@ function drawInstances() {
     [['exit', i.exit], ['channels', fmt(i.channels)], ['never / silent / failed', fmt(i.silent)], ['GB in 30 d', fmt(i.gb30, 1)], ['latest slot', i.last_result], ['last completed, minutes', fmt(i.last_minutes)],
      ['added / removed', i.last_added == null && i.last_removed == null ? '' : fmtSigned(i.last_added) + ' / ' + fmt(i.last_removed)], ['failed, 24 h', fmt(i.failed_24h)]]
       .forEach(([k, v]) => dl.append(el('dt', null, k), el('dd', null, v == null ? '' : String(v))));
-    card.append(head, el('div', { class: 'big' }, fmt(i.videos30)), el('p', { class: 'note' }, 'videos downloaded in 30 days' + (i.host ? ' · ' + i.host : '')), dl);
+    card.append(head, el('div', { class: 'big' }, fmt(i.videos30)), el('p', { class: 'note' }, 'videos downloaded in 30 days' + (i.host ? ' · ' + i.host : '') + (i.ytdl_sub ? ' · ytdl-sub ' + i.ytdl_sub : '')), dl);
     card.addEventListener('click', () => { state.instance = state.instance === i.instance ? null : i.instance; redraw(); });
     cards.append(card);
   });

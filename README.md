@@ -6,9 +6,10 @@ dashboard asks the agents. ytdl-dash is an independent project, not affiliated w
 
 ![the dashboard](docs/dashboard.png)
 
-- **Instances**: health, where the traffic exits (with gluetun), what the last run did, failures in the last day.
+- **Instances**: health, where the traffic exits (with gluetun), the ytdl-sub version, what the last run did, failures
+  in the last day, and anything the agent cannot reach as a warning.
 - **Runs**: every cron slot, how long it took, added and removed, and why it ended (ok, error, lock, timeout, killed).
-- **Channels**: every subscription with what is on disk, the last run's verdict on it, and a status
+- **Channels**: every subscription with what is on disk, the last run's verdict on it and a status
   (active, quiet, silent, never, failed, unchecked); filter by instance or status, search, sort.
 - **New videos per day**, stacked by instance.
 - **Commands** from the dashboard, when you give the agents a token: run now, stop, reconnect the VPN, rescan.
@@ -18,12 +19,9 @@ dashboard asks the agents. ytdl-dash is an independent project, not affiliated w
 
 ## Quick start
 
-Two folders from [`deploy/`](deploy/): [`instance/`](deploy/instance/) goes beside each ytdl-sub, with `compose.yaml`,
-`cron.sh` and a `.env`; [`dashboard/`](deploy/dashboard/) runs the dashboard over every agent. `cron.sh` is the run
-script ytdl-sub's cron executes: it prints the markers the agent reads, and the rest of it is the usual `ytdl-sub sub`
-with a timeout.
-
-Beside each ytdl-sub, a folder of its own. The `.env` names the folders and the token:
+Two folders from [`deploy/`](deploy/). [`instance/`](deploy/instance/) goes beside each ytdl-sub: `compose.yaml`,
+`cron.sh` and a `.env`. `cron.sh` is the run script ytdl-sub's cron executes, the usual `ytdl-sub sub` with a timeout
+plus the markers the agent reads. The `.env`:
 
 ```
 APPDATA=/srv/appdata           # ytdl-sub's config and the agent's state live under <APPDATA>/<INSTANCE>/
@@ -34,7 +32,7 @@ AGENT_PORT=9100                # the agent's port on the host
 ```
 
 Then `docker compose up -d`. Several instances on one host are several such folders, each with its own `INSTANCE`
-and its own `AGENT_PORT`.
+and `AGENT_PORT`.
 
 ```yaml
 services:
@@ -96,8 +94,8 @@ services:
 
 Behind a VPN, uncomment the gluetun service and the lines marked `vpn`, and give gluetun your provider's settings.
 
-The dashboard, in a folder of its own, lists every agent by the address of the machine it runs on and the agent's
-port. Edit `AGENTS` and `TOKEN`, then `docker compose up -d` and open http://localhost:8089.
+[`dashboard/`](deploy/dashboard/) runs the dashboard over every agent, listed by the address of the machine it runs on
+and the agent's port. Edit `AGENTS` and `TOKEN`, `docker compose up -d`, open http://localhost:8089.
 
 ```yaml
 name: ytdl-dash
@@ -124,26 +122,25 @@ ytdl-sub ──writes──▶ /config/.cron.log ──tails──▶ agent ─�
          ──writes──▶ /media/<channel>/.ytdl-sub-<name>-download-archive.json ──reads──▶ agent
 ```
 
-The agent mounts the instance's config folder and media folder read-only and:
+The agent mounts the instance's config and media folders read-only and:
 
-1. **Follows the cron log.** ytdl-sub's LinuxServer image runs `/config/cron` on a schedule and writes its output to
-   `/config/.cron.log`. The script in `deploy/instance/cron.sh` prints a marker when a run starts and when it ends (ok, with
-   errors, timed out, skipped on the lock). Those markers, and the `Download Summary` table ytdl-sub prints, become the
-   run history. The history is kept in the agent's own state folder, so a recreated container loses nothing.
-2. **Reads the download archives.** Each subscription's archive holds the videos ytdl-sub still tracks, with their upload
-   dates. That gives "kept", the last upload, the new-videos-per-day chart, and, by diffing the archive before and after
-   a run, added and removed counts that do not depend on parsing any log.
+1. **Follows the cron log.** ytdl-sub's image runs `/config/cron` on a schedule and writes its output to
+   `/config/.cron.log`. The script in `deploy/instance/cron.sh` prints a marker when a run starts and when it ends (ok,
+   with errors, timed out, skipped on the lock). The markers and ytdl-sub's `Download Summary` table become the run
+   history, kept in the agent's own state folder, so a recreated container loses nothing.
+2. **Reads the download archives.** Each subscription's archive lists the videos ytdl-sub still tracks, with their upload
+   dates: that is "kept", the last upload, the per-day chart, and, by diffing the archive before and after a run, added
+   and removed counts that depend on no log.
 3. **Measures the files.** Counts and sizes of the videos next to each archive, in total and for the last 30 and 90 days,
-   which is where a channel's status comes from. The library usually sits on a network share, which charges per
-   round trip rather than per byte, so the scan lists the show folders rather than walking every season, measures only
-   this instance's subscriptions, and does several folders at a time. Several instances can share one library.
-   `ytdl-agent scan [-subs subscriptions.yaml] /media` shows what the agent would find there and how long the share
-   takes to answer.
-4. **Asks around.** With the Docker socket mounted it reads the container's health and the ytdl-sub version, and can
-   start or stop a run. With gluetun's control server configured it shows the exit country and city and can reconnect.
+   which is where a channel's status comes from. A network share charges per listing, so the scan lists the show folders
+   rather than every season and measures only this instance's subscriptions; several instances can share one library.
+   `ytdl-agent scan [-subs subscriptions.yaml] /media` shows what the agent finds and how long the share takes.
+4. **Asks around.** With the Docker socket it reads the container's health and the ytdl-sub version and can start or
+   stop a run; without it, the agent only observes. With gluetun's control server it shows the exit country and city
+   and can reconnect.
 
-The dashboard polls every agent's `/api/all`, merges the answers, serves the page, and forwards commands with the
-shared token, so the browser never holds it.
+The dashboard polls every agent's `/api/all`, merges the answers, serves the page and forwards commands with the shared
+token, so the browser never holds it.
 
 ## Configuration
 
@@ -154,13 +151,22 @@ shared token, so the browser never holds it.
 | `INSTANCE` | required: the instance's name, as shown on the card |
 | `TOKEN` | bearer token for commands; empty keeps every POST off |
 | `YTDL_CONTAINER` | the ytdl-sub container's name; with the socket mounted: health, run, stop, version |
-| `HOST` | the machine's name, shown under the card's number; default: the container's hostname |
+| `HOST` | the machine's name under the card's number; default: the Docker host's name through the socket, else the container's hostname |
 | `GLUETUN_API_URL` | gluetun's control server, e.g. `http://ytdlsub-main-vpn:8000`; makes the VPN the exit and enables reconnect |
 | `GLUETUN_API_KEY` | its API key |
-| `TRIGGERS` | `match => action; match => action`, see below |
+| `TRIGGERS` | `match => action` pairs separated by `;`, see below |
 
 Mounts: ytdl-sub's config folder at `/config` and the library at `/media`, both read-only; a folder for the run history
 at `/data`; the Docker socket, optionally.
+
+Actions: `gluetun-reconnect` (cycles the tunnel until the public address changes), `restart:<container>`,
+`webhook:<url>` (POSTs JSON with instance, trigger, line and time; a Discord webhook URL gets `content`),
+`notify:<url>` (POSTs plain text, ntfy-style, with a `Title` header), `log`. docker-log-watchdog's `TRIGGER_STRINGS`,
+`RESTART_TARGET` and `RESTART_COOLDOWN` still work for a one-action setup.
+
+```yaml
+TRIGGERS: "Sign in to confirm => gluetun-reconnect; HTTP Error 429 => notify:https://ntfy.sh/ytdl"
+```
 
 <details>
 <summary>Everything else has a default</summary>
@@ -174,7 +180,7 @@ at `/data`; the Docker socket, optionally.
 | `MEDIA_DIR` | `/media` | where the channel folders and archives are |
 | `STATE_DIR` | `/data` | the agent's run history |
 | `LISTEN` | `:9100` | address of the HTTP API |
-| `DOCKER_SOCKET` | `/var/run/docker.sock` | |
+| `DOCKER_SOCKET` | `/var/run/docker.sock` | the Docker socket |
 | `RUN_COMMAND` | `sh -c 'bash /config/cron >> /config/.cron.log 2>&1'` | what "run now" executes in the container |
 | `RUN_USER` | `abc` | the user it runs as (LinuxServer's) |
 | `STOP_COMMAND` | `pkill -TERM -f [y]tdl-sub\ -l` | what "stop" executes |
@@ -186,16 +192,6 @@ at `/data`; the Docker socket, optionally.
 
 </details>
 
-Actions: `gluetun-reconnect` (cycles the tunnel until the public address changes), `restart:<container>`,
-`webhook:<url>` (POSTs JSON with instance, trigger, line, time; a Discord webhook URL gets `content`),
-`notify:<url>` (POSTs plain text, ntfy-style, with a `Title` header), `log`.
-
-```yaml
-TRIGGERS: "Sign in to confirm => gluetun-reconnect; HTTP Error 429 => notify:https://ntfy.sh/ytdl"
-```
-
-docker-log-watchdog's `TRIGGER_STRINGS`, `RESTART_TARGET` and `RESTART_COOLDOWN` still work for a one-action setup.
-
 ### Dashboard
 
 | Variable | Default | What it is |
@@ -204,7 +200,7 @@ docker-log-watchdog's `TRIGGER_STRINGS`, `RESTART_TARGET` and `RESTART_COOLDOWN`
 | `TOKEN` | empty | the agents' token, forwarded with commands |
 | `POLL` | `60s` | how often agents are asked; the page refreshes at the same rate |
 | `LISTEN` | `:8089` | the address inside the container; publish it with `ports` |
-| `TITLE` | `ytdl-dash` | |
+| `TITLE` | `ytdl-dash` | the page's title |
 
 ## API
 
@@ -215,11 +211,10 @@ and `POST /api/<instance>/<command>`.
 
 ## What can break, and what is done about it
 
-The one fragile piece is reading ytdl-sub's `Download Summary` table, whose shape can change with a release. The agent
-depends on it only for the per-channel tick or cross; counts come from the archives when the table is missing. The
-parser lives in `internal/runlog` with real log samples in `testdata`; when the format changes, runs and counts keep
-working and the per-channel verdict reads unchecked. A machine-readable run summary from ytdl-sub itself would remove
-the parser entirely.
+The one fragile piece is ytdl-sub's `Download Summary` table, whose shape can change with a release. The agent depends
+on it only for the per-channel tick or cross; runs and counts come from the markers and the archives. When the format
+changes, the per-channel verdict reads unchecked until the parser catches up. A machine-readable run summary from
+ytdl-sub itself would remove the parser entirely.
 
 ## Security
 
