@@ -5,7 +5,7 @@
 #   MEDIA=/srv/media/youtube       # the library; several instances can share it
 #   TOKEN=pick-a-long-random-one   # optional: enables the dashboard's buttons; the same value goes in the dashboard's .env
 #   INSTANCE=main                  # the instance's name on the dashboard
-#   AGENT_PORT=9100                # one per instance on a host; the dashboard reaches the agent here
+#   AGENT_PORT=9100                # the agent's port on the host; each instance on a host needs its own
 services:
   # gluetun:                                           # vpn: the exit, https://github.com/qdm12/gluetun-wiki
   #   image: qmcgaw/gluetun

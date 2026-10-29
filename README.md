@@ -23,18 +23,18 @@ Two folders from [`deploy/`](deploy/): [`instance/`](deploy/instance/) goes besi
 script ytdl-sub's cron executes: it prints the markers the agent reads, and the rest of it is the usual `ytdl-sub sub`
 with a timeout.
 
-Beside each ytdl-sub, in a folder of its own:
+Beside each ytdl-sub, a folder of its own. The `.env` names the folders and the token:
 
-```sh
-cat > .env <<'ENV'
+```
 APPDATA=/srv/appdata           # ytdl-sub's config and the agent's state live under <APPDATA>/<INSTANCE>/
 MEDIA=/srv/media/youtube       # the library; several instances can share it
 TOKEN=pick-a-long-random-one   # optional: enables the dashboard's buttons
 INSTANCE=main                  # the instance's name on the dashboard
-AGENT_PORT=9100                # one per instance on a host
-ENV
-docker compose up -d
+AGENT_PORT=9100                # the agent's port on the host
 ```
+
+Then `docker compose up -d`. Several instances on one host are several such folders, each with its own `INSTANCE`
+and its own `AGENT_PORT`.
 
 ```yaml
 services:
@@ -96,17 +96,8 @@ services:
 
 Behind a VPN, uncomment the gluetun service and the lines marked `vpn`, and give gluetun your provider's settings.
 
-The dashboard, in its own folder, lists every agent. Agents on the same host are reached at `host.docker.internal`
-and their port, agents on other machines by address:
-
-```sh
-cat > .env <<'ENV'
-AGENTS=main=http://host.docker.internal:9100,second=http://192.0.2.10:9100
-TOKEN=pick-a-long-random-one   # the agents' token
-ENV
-docker compose up -d
-open http://localhost:8089
-```
+The dashboard, in a folder of its own, lists every agent by the address of the machine it runs on and the agent's
+port. Edit `AGENTS` and `TOKEN`, then `docker compose up -d` and open http://localhost:8089.
 
 ```yaml
 name: ytdl-dash
@@ -116,14 +107,12 @@ services:
     container_name: ytdl-dash
     restart: unless-stopped
     ports:
-      - ${DASH_PORT:-8089}:8089
-    extra_hosts:
-      - host.docker.internal:host-gateway              # this host, for the agents running on it
+      - 8089:8089
     environment:
-      AGENTS: ${AGENTS:?list the agents, e.g. main=http://host.docker.internal:9100}
-      TOKEN: ${TOKEN:-}
+      AGENTS: main=http://192.0.2.10:9100,second=http://192.0.2.10:9101   # each agent: its host's address and its port
+      TOKEN: pick-a-long-random-one                                       # the agents' token; empty = no buttons
       POLL: 60s
-      TITLE: ${TITLE:-ytdl-dash}
+      TITLE: ytdl-dash
 ```
 
 The images are `ghcr.io/mytview/ytdl-dash` and `ghcr.io/mytview/ytdl-dash-agent`, for amd64 and arm64.
@@ -214,7 +203,7 @@ docker-log-watchdog's `TRIGGER_STRINGS`, `RESTART_TARGET` and `RESTART_COOLDOWN`
 | `AGENTS` | required | comma-separated agent URLs, each optionally `name=url` |
 | `TOKEN` | empty | the agents' token, forwarded with commands |
 | `POLL` | `60s` | how often agents are asked; the page refreshes at the same rate |
-| `LISTEN` | `:8089` | |
+| `LISTEN` | `:8089` | the address inside the container; publish it with `ports` |
 | `TITLE` | `ytdl-dash` | |
 
 ## API

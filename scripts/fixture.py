@@ -1,7 +1,7 @@
 """Build a synthetic ytdl-sub library, config folder and cron log, to run the agent and the dashboard without a
-ytdl-sub instance (the README screenshot comes from it). Usage: hack/fixture.py DIR [TESTDATA_FILE]
+ytdl-sub instance (the README screenshot comes from it). Usage: scripts/fixture.py DIR [TESTDATA_FILE]
 
-  python3 hack/fixture.py /tmp/fx
+  python3 scripts/fixture.py /tmp/fx
   INSTANCE=main CONFIG_DIR=/tmp/fx/config MEDIA_DIR=/tmp/fx/media STATE_DIR=/tmp/fx/state LISTEN=127.0.0.1:9100 \
     SUBSCRIPTIONS_IN_CONTAINER=none DOCKER_SOCKET=none go run ./cmd/agent &
   AGENTS=main=http://127.0.0.1:9100 LISTEN=127.0.0.1:8089 go run ./cmd/dash
@@ -10,7 +10,7 @@ ytdl-sub instance (the README screenshot comes from it). Usage: hack/fixture.py 
 summary; video files are sparse, so the library costs nothing on disk. With a second argument the same channel list
 is written as the grouped subscriptions test file."""
 import json, os, random, sys, datetime as dt, pathlib
-random.seed(7)
+random.seed(int(os.environ.get("FIXTURE_SEED", "7")))  # another seed: another instance's data, for a screenshot with several
 root = pathlib.Path(sys.argv[1]); testdata = pathlib.Path(sys.argv[2]) if len(sys.argv) > 2 else None
 now = dt.datetime.now(dt.timezone.utc).replace(microsecond=0)
 groups = [

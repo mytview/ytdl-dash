@@ -1,6 +1,7 @@
 #!/bin/sh
-# Build both images. Local: ./build.sh (loads ytdl-dash:dev and ytdl-dash-agent:dev). Publish: REGISTRY=ghcr.io/mytview VERSION=0.1.0 ./build.sh push
+# Build both images. Local: scripts/build.sh (loads ytdl-dash:dev and ytdl-dash-agent:dev). Publish: REGISTRY=ghcr.io/mytview VERSION=0.1.0 scripts/build.sh push
 set -eu
+cd "$(dirname "$0")/.."
 VERSION=${VERSION:-dev}; REGISTRY=${REGISTRY:-}
 for cmd in agent dash; do
   case $cmd in agent) name=ytdl-dash-agent;; dash) name=ytdl-dash;; esac
