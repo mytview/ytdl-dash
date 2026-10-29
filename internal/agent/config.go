@@ -11,7 +11,7 @@ import (
 // Config is everything the agent reads from the environment. Only INSTANCE is required.
 type Config struct {
 	Instance string // INSTANCE: the name on the card
-	Host     string // HOST: the machine's name, shown on the card; default the container's hostname
+	Host     string // HOST: the machine's name, shown on the card; default the Docker host's name through the socket, else this container's hostname
 
 	ConfigDir       string // CONFIG_DIR, default /config: ytdl-sub's config folder (its cron log, subscriptions and .last-success)
 	LogFile         string // LOG_FILE, default CONFIG_DIR/.cron.log
@@ -53,8 +53,7 @@ func ConfigFromEnv(version string) (Config, error) {
 	if c.Instance == "" {
 		return c, fmt.Errorf("INSTANCE is required: the name of this ytdl-sub instance")
 	}
-	host, _ := os.Hostname()
-	c.Host = env("HOST", host)
+	c.Host = env("HOST", "") // resolved in New: the daemon's name when the socket answers, else os.Hostname
 	c.ConfigDir = env("CONFIG_DIR", "/config")
 	c.LogFile = env("LOG_FILE", filepath.Join(c.ConfigDir, ".cron.log"))
 	c.SubsFile = env("SUBSCRIPTIONS", filepath.Join(c.ConfigDir, "subscriptions.yaml"))

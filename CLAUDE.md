@@ -23,7 +23,7 @@ locally); the dashboard replaces the page's collector.
 
 ## Decisions already made
 
-- **Sidecar.** The ytdl-sub image is untouched. The only hook is `deploy/cron.sh` installed as `/config/cron`, which
+- **Sidecar.** The ytdl-sub image is untouched. The only hook is `deploy/instance/cron.sh` installed as `/config/cron`, which
   prints a marker when a run starts and when it ends. Everything else is read from files and the socket.
 - **Disk is the ground truth.** Archives and files give kept, last upload, counts, sizes and channel status. The log
   adds the per-channel verdict and the timings. Added and removed come from ytdl-sub's Download Summary when it prints
@@ -57,13 +57,13 @@ locally); the dashboard replaces the page's collector.
 | `internal/agent` | config from the environment, the service (state machine, scans, persistence), the HTTP handler |
 | `internal/dash` | polls agents, merges, serves the page and proxies commands; `web/index.html` is the page |
 | `internal/model` | the JSON shapes agent and dashboard share |
-| `deploy/` | `compose.yaml` example and the `cron.sh` wrapper |
+| `deploy/` | `instance/`: the compose example beside one ytdl-sub, gluetun optional, and the `cron.sh` wrapper; `dashboard/`: the dashboard's compose |
 | `testdata/` | a real cron log sample and two subscriptions files (generic shapes, and a grouped file `hack/fixture.py` writes) |
 | `hack/fixture.py` | a synthetic library, config and cron log: run agent and dashboard without ytdl-sub; the README screenshot |
 
 ## Working on it
 
-- `gofmt -l .` prints nothing; `go vet ./...` and `go test ./...` pass. A parser change comes with a sample in
+- `gofmt -l .` prints nothing; `go vet ./...` and `go test -race ./...` pass. A parser change comes with a sample in
   `testdata/` and a test.
 - To try a change on a real host: `GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build ./cmd/agent` (same for dash), run
   `ytdl-agent scan` against the library first, then the agent on a loopback LISTEN with a throwaway STATE_DIR.
@@ -76,13 +76,14 @@ locally); the dashboard replaces the page's collector.
   lines while one removed later breaks compose files. The repository is `github.com/mytview/ytdl-dash`, under the
   `mytview` GitHub organisation like mytview-server.
 - The README is for users: no development notes there (they live here, and `hack/fixture.py` and `build.sh` carry
-  their own usage comments), the settings table shows the few that get set and folds the rest, and its compose block is
-  the essentials of `deploy/compose.yaml`: a change to one goes to the other.
+  their own usage comments), the settings table shows the few that get set and folds the rest, and its two compose
+  blocks are the services of `deploy/instance/compose.yaml` and `deploy/dashboard/compose.yaml` verbatim: a change
+  to one goes to the other.
 - Commit messages say what changed and why, in the style of `git log`.
 - Nothing homelab-specific goes in this repository: no addresses, host names, container names or paths of the owner's
   LAN. Those live in `CLAUDE.local.md`, which git ignores.
 
-## Status, 28 October 2026
+## Status, 29 October 2026
 
 Done and verified against a real instance: log replay and follow, the archive scan (24 subscriptions in 0.3 s over a
 slow NFS share, 108 shows in 1.9 s), health and version through the socket, token-gated commands, dashboard merge
@@ -94,11 +95,16 @@ run with Compose against `hack/fixture.py` with a stand-in container on the sock
 token-gated "run now" through the dashboard proxy. The git history before publication still held the owner's
 subscriptions file and a LAN address, so the first public commit starts fresh.
 
+Published: `v0.1.0` on 29 October 2026, public repository and public GHCR packages. `v0.1.1`, the same day, after
+the first real deployment: runs no longer doubled after an agent restart (the saved history and the replayed log are
+merged by start time, the saved copy winning when it carries archive-diff counts); the subscriptions are read again
+through the socket every minute after a fallback, since the agent often starts before its container; HOST defaults
+to the Docker host's name through the socket, not the agent container's id; the tailer's stop is lock-protected; the
+header pluralises; one agent gets its card and the runs on the top row with the chart full width; the card's
+actions sit in its header as icon buttons, labelled where the card is wider than 34rem; two compose files.
+
 Not done:
 
-- The repository exists and `main` is pushed, private until the first release; no published images yet. The first
-  release is `v0.1.0`: make the repository public, tag, then set the two new packages public once. The owner decides
-  when.
 - `internal/dash`, `internal/dockerx` and `internal/gluetun` have no tests. The service test covers the agent end to
   end against files; a fake agent for the dashboard is the next test to write.
 - Archive to subscription matching is exact equality between the archive file name and the subscription name. A
@@ -110,3 +116,5 @@ Ideas, in rough order:
 - Flag library folders that no subscription owns. The agent already lists them during discovery; the dashboard would
   take the union of every agent's subscriptions, since instances can share a library. Judged premature for now.
 - Dashboard authentication, if anyone wants it beyond a LAN.
+- An "untracked" count per channel, files on disk minus archive entries: a preset change leaves the old layout's
+  videos behind, which ytdl-sub never prunes, and the first deployment had 113 of them in one folder.

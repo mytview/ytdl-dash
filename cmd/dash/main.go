@@ -3,6 +3,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -18,6 +19,10 @@ var version = "dev"
 
 func main() {
 	log.SetFlags(log.LstdFlags | log.LUTC)
+	if len(os.Args) > 1 && (os.Args[1] == "version" || os.Args[1] == "-version" || os.Args[1] == "--version") {
+		fmt.Println("ytdl-dash " + version)
+		return
+	}
 	poll, err := time.ParseDuration(env("POLL", "60s"))
 	if err != nil {
 		log.Fatalf("POLL: %v", err)
@@ -32,7 +37,7 @@ func main() {
 	listen := env("LISTEN", ":8089")
 	srv := &http.Server{Addr: listen, Handler: d.Handler(), ReadHeaderTimeout: 10 * time.Second}
 	go func() {
-		log.Printf("ytdl-sub dashboard %s listening on %s, polling every %s", version, listen, poll)
+		log.Printf("ytdl-dash %s listening on %s, polling every %s", version, listen, poll)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatal(err)
 		}

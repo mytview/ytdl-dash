@@ -3,6 +3,7 @@ package runlog
 import (
 	"os"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -94,17 +95,21 @@ func TestTailerReplayAndFollow(t *testing.T) {
 	if err := os.WriteFile(path, []byte("Cron started, running ytdl-sub... (2026-10-27T00:10:00Z)\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
+	var mu sync.Mutex
 	var got []Event
+	events := func() []Event { mu.Lock(); defer mu.Unlock(); return append([]Event(nil), got...) }
 	tl := &Tailer{Path: path, Interval: 20 * time.Millisecond, Parser: &Parser{}, Handle: func(e Event) {
 		if e.Kind != Line {
+			mu.Lock()
 			got = append(got, e)
+			mu.Unlock()
 		}
 	}}
 	if err := tl.Replay(); err != nil {
 		t.Fatal(err)
 	}
-	if len(got) != 1 || got[0].Kind != RunStarted {
-		t.Fatalf("replay got %+v", got)
+	if len(events()) != 1 || events()[0].Kind != RunStarted {
+		t.Fatalf("replay got %+v", events())
 	}
 	go tl.Follow()
 	defer tl.Stop()
@@ -113,24 +118,24 @@ func TestTailerReplayAndFollow(t *testing.T) {
 	f.Close()
 	deadline := time.Now().Add(2 * time.Second)
 	for time.Now().Before(deadline) {
-		if len(got) == 2 {
+		if len(events()) == 2 {
 			break
 		}
 		time.Sleep(10 * time.Millisecond)
 	}
-	if len(got) != 2 || got[1].Kind != RunEnded || got[1].Result != "ok" {
-		t.Fatalf("follow got %+v", got)
+	if len(events()) != 2 || events()[1].Kind != RunEnded || events()[1].Result != "ok" {
+		t.Fatalf("follow got %+v", events())
 	}
 	// truncation: a recreated container starts a fresh log
 	os.WriteFile(path, []byte("Cron started, running ytdl-sub... (2026-10-27T02:10:00Z)\n"), 0o644)
 	deadline = time.Now().Add(2 * time.Second)
 	for time.Now().Before(deadline) {
-		if len(got) == 3 {
+		if len(events()) == 3 {
 			break
 		}
 		time.Sleep(10 * time.Millisecond)
 	}
-	if len(got) != 3 || got[2].Kind != RunStarted {
-		t.Fatalf("after truncation got %+v", got)
+	if len(events()) != 3 || events()[2].Kind != RunStarted {
+		t.Fatalf("after truncation got %+v", events())
 	}
 }

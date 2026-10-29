@@ -18,67 +18,113 @@ dashboard asks the agents. ytdl-dash is an independent project, not affiliated w
 
 ## Quick start
 
-Two files from [`deploy/`](deploy/): `compose.yaml` and `cron.sh`. The second is the run script ytdl-sub's cron
-executes; it prints the markers the agent reads, and the rest of it is the usual `ytdl-sub sub` with a timeout. Put
-both in a folder, write a `.env` next to them, and start:
+Two folders from [`deploy/`](deploy/): [`instance/`](deploy/instance/) goes beside each ytdl-sub, with `compose.yaml`,
+`cron.sh` and a `.env`; [`dashboard/`](deploy/dashboard/) runs the dashboard over every agent. `cron.sh` is the run
+script ytdl-sub's cron executes: it prints the markers the agent reads, and the rest of it is the usual `ytdl-sub sub`
+with a timeout.
+
+Beside each ytdl-sub, in a folder of its own:
 
 ```sh
 cat > .env <<'ENV'
-APPDATA=/srv/appdata          # ytdl-sub's config and the agent's state live under it
-MEDIA=/srv/media/youtube      # the library
-TOKEN=pick-a-long-random-one  # optional: enables the buttons
+APPDATA=/srv/appdata           # ytdl-sub's config and the agent's state live under <APPDATA>/<INSTANCE>/
+MEDIA=/srv/media/youtube       # the library; several instances can share it
+TOKEN=pick-a-long-random-one   # optional: enables the dashboard's buttons
+INSTANCE=main                  # the instance's name on the dashboard
+AGENT_PORT=9100                # one per instance on a host
+ENV
+docker compose up -d
+```
+
+```yaml
+services:
+  # gluetun:                                           # vpn: the exit, https://github.com/qdm12/gluetun-wiki
+  #   image: qmcgaw/gluetun
+  #   container_name: ytdlsub-${INSTANCE:-main}-vpn
+  #   restart: unless-stopped
+  #   cap_add: [NET_ADMIN]
+  #   devices: [/dev/net/tun:/dev/net/tun]
+  #   environment:
+  #     VPN_SERVICE_PROVIDER: ...                      # provider and credentials, see the wiki
+  #     HTTP_CONTROL_SERVER_ADDRESS: ":8000"           # the control server the agent reads the exit from and reconnects
+  #   volumes:
+  #     - ${APPDATA:-./data}/${INSTANCE:-main}/vpn:/gluetun   # auth/config.toml holds the control server's API key
+
+  ytdl-sub:
+    image: ghcr.io/jmbannon/ytdl-sub:latest
+    container_name: ytdlsub-${INSTANCE:-main}
+    restart: unless-stopped
+    # network_mode: service:gluetun                    # vpn: all traffic through the tunnel
+    # depends_on: { gluetun: { condition: service_healthy } }   # vpn: start once the tunnel is up
+    volumes:
+      - ${APPDATA:-./data}/${INSTANCE:-main}/ytdl:/config
+      - ./cron.sh:/config/cron:ro                      # the run script; the agent's markers come from it (Docker Desktop cannot
+                                                       # mount a file inside a mounted folder: copy it to <config>/cron there)
+      - ${MEDIA:-./media}:/media
+    environment:
+      PUID: ${PUID:-1000}
+      PGID: ${PGID:-1000}
+      TZ: ${TZ:-UTC}
+      CRON_SCHEDULE: ${CRON_SCHEDULE:-10 */2 * * *}
+      CRON_RUN_ON_START: "true"
+      UPDATE_YT_DLP_ON_START: stable
+    healthcheck:                                       # a run succeeded in the last 6 h; the agent shows it through the socket
+      test: ["CMD-SHELL", "test -n \"$(find /config/.last-success -mmin -360 2>/dev/null)\""]
+      interval: 5m
+      start_period: 30m
+
+  agent:
+    image: ghcr.io/mytview/ytdl-dash-agent:latest
+    container_name: ytdlsub-${INSTANCE:-main}-agent
+    restart: unless-stopped
+    depends_on: [ytdl-sub]
+    ports:
+      - ${AGENT_PORT:-9100}:9100
+    environment:
+      INSTANCE: ${INSTANCE:-main}
+      TOKEN: ${TOKEN:-}                                # same value as the dashboard's; empty = no commands
+      YTDL_CONTAINER: ytdlsub-${INSTANCE:-main}        # with the socket: health, run now, stop, ytdl-sub version
+      # GLUETUN_API_URL: http://ytdlsub-${INSTANCE:-main}-vpn:8000   # vpn: the exit on the card, and gluetun-reconnect
+      # GLUETUN_API_KEY: ${GLUETUN_API_KEY}
+      # TRIGGERS: "Sign in to confirm => gluetun-reconnect; HTTP Error 429 => notify:https://ntfy.sh/your-topic"
+    volumes:
+      - ${APPDATA:-./data}/${INSTANCE:-main}/ytdl:/config:ro
+      - ${MEDIA:-./media}:/media:ro
+      - ${APPDATA:-./data}/${INSTANCE:-main}/agent:/data        # the agent's run history
+      - /var/run/docker.sock:/var/run/docker.sock:ro            # optional; without it the agent only observes
+```
+
+Behind a VPN, uncomment the gluetun service and the lines marked `vpn`, and give gluetun your provider's settings.
+
+The dashboard, in its own folder, lists every agent. Agents on the same host are reached at `host.docker.internal`
+and their port, agents on other machines by address:
+
+```sh
+cat > .env <<'ENV'
+AGENTS=main=http://host.docker.internal:9100,second=http://192.0.2.10:9100
+TOKEN=pick-a-long-random-one   # the agents' token
 ENV
 docker compose up -d
 open http://localhost:8089
 ```
 
-The essentials of that compose file, one ytdl-sub instance named `main` with its agent and the dashboard:
-
 ```yaml
+name: ytdl-dash
 services:
-  ytdl-sub:
-    image: ghcr.io/jmbannon/ytdl-sub:latest
-    container_name: ytdlsub-main
-    restart: unless-stopped
-    volumes:
-      - ${APPDATA}/main/ytdl:/config
-      - ./cron.sh:/config/cron:ro                      # the run script; the agent's markers come from it
-      - ${MEDIA}:/media
-    environment:
-      PUID: 1000
-      PGID: 1000
-      TZ: UTC
-      CRON_SCHEDULE: "10 */2 * * *"
-      CRON_RUN_ON_START: "true"
-
-  agent:
-    image: ghcr.io/mytview/ytdl-dash-agent:latest
-    container_name: ytdlsub-main-agent
-    restart: unless-stopped
-    environment:
-      INSTANCE: main
-      TOKEN: ${TOKEN:-}                                # same value as the dashboard's; empty = no commands
-      YTDL_CONTAINER: ytdlsub-main                     # with the socket: health, run now, stop, ytdl-sub version
-    volumes:
-      - ${APPDATA}/main/ytdl:/config:ro
-      - ${MEDIA}:/media:ro
-      - ${APPDATA}/main/agent:/data                    # the agent's run history
-      - /var/run/docker.sock:/var/run/docker.sock:ro   # optional; without it the agent only observes
-
   dashboard:
     image: ghcr.io/mytview/ytdl-dash:latest
     container_name: ytdl-dash
     restart: unless-stopped
     ports:
-      - 8089:8089
+      - ${DASH_PORT:-8089}:8089
+    extra_hosts:
+      - host.docker.internal:host-gateway              # this host, for the agents running on it
     environment:
-      AGENTS: main=http://agent:9100                   # comma-separated; agents on other hosts by address
+      AGENTS: ${AGENTS:?list the agents, e.g. main=http://host.docker.internal:9100}
       TOKEN: ${TOKEN:-}
+      POLL: 60s
+      TITLE: ${TITLE:-ytdl-dash}
 ```
-
-The full [`deploy/compose.yaml`](deploy/compose.yaml) adds a gluetun service, a healthcheck and the notes for more
-instances: repeat `ytdl-sub` and `agent` with another name, folder and agent port, and list every agent in the
-dashboard's `AGENTS`. Agents on other machines are reached by address: `AGENTS=main=http://agent:9100,second=http://192.0.2.10:9100`.
 
 The images are `ghcr.io/mytview/ytdl-dash` and `ghcr.io/mytview/ytdl-dash-agent`, for amd64 and arm64.
 
@@ -92,7 +138,7 @@ ytdl-sub ──writes──▶ /config/.cron.log ──tails──▶ agent ─�
 The agent mounts the instance's config folder and media folder read-only and:
 
 1. **Follows the cron log.** ytdl-sub's LinuxServer image runs `/config/cron` on a schedule and writes its output to
-   `/config/.cron.log`. The script in `deploy/cron.sh` prints a marker when a run starts and when it ends (ok, with
+   `/config/.cron.log`. The script in `deploy/instance/cron.sh` prints a marker when a run starts and when it ends (ok, with
    errors, timed out, skipped on the lock). Those markers, and the `Download Summary` table ytdl-sub prints, become the
    run history. The history is kept in the agent's own state folder, so a recreated container loses nothing.
 2. **Reads the download archives.** Each subscription's archive holds the videos ytdl-sub still tracks, with their upload

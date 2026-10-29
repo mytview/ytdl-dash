@@ -75,6 +75,23 @@ func (c *Client) Available(ctx context.Context) bool {
 	return true
 }
 
+// Info reads the daemon's own hostname: the machine's name, which is what the card wants, where the agent's own
+// hostname is just its container id.
+func (c *Client) Info(ctx context.Context) (string, error) {
+	resp, err := c.do(ctx, http.MethodGet, "/info", nil)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	var raw struct {
+		Name string `json:"Name"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&raw); err != nil {
+		return "", err
+	}
+	return raw.Name, nil
+}
+
 // State is what the card shows about the container.
 type State struct {
 	Status    string // running, exited...
@@ -146,7 +163,7 @@ func (c *Client) execID(ctx context.Context, name string, cmd []string, attach b
 }
 
 // ExecDetached starts a command in the container and returns at once. Used to start a run: its output goes wherever
-// the command sends it (deploy/cron.sh appends to the cron log, which the agent is tailing).
+// the command sends it (deploy/instance/cron.sh appends to the cron log, which the agent is tailing).
 func (c *Client) ExecDetached(ctx context.Context, name string, cmd []string, user string) error {
 	id, err := c.execID(ctx, name, cmd, false, user)
 	if err != nil {

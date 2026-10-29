@@ -29,10 +29,13 @@
   .card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; display: grid; gap: 8px; min-width: 0; align-content: start; }
   .card > * { min-width: 0; }   /* a wide table scrolls inside its box instead of widening the page */
   .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 1fr)); gap: 12px; }
+  .cards.single { grid-template-columns: repeat(auto-fit, minmax(min(100%, 24rem), 1fr)); }
+  .cards.single #runs .tablebox { max-height: 19rem; }
   .grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 24rem), 1fr)); gap: 12px; }
   .inst { cursor: pointer; }
   .inst.sel { outline: 2px solid var(--sel); }
-  .inst-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+  .inst { container-type: inline-size; }
+  .inst-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
   .inst-name { font-size: 17px; font-weight: 600; }
   .pill { font-size: 12px; border-radius: 999px; padding: 0 .6em; border: 1px solid var(--line); white-space: nowrap; }
   .pill.ok { color: var(--ok); } .pill.warn { color: var(--warn); } .pill.bad { color: var(--bad); }
@@ -62,8 +65,10 @@
   .chip.on { background: var(--sel); color: #fff; border-color: transparent; }
   input[type=search] { font: inherit; font-size: 13px; padding: .25em .6em; border: 1px solid var(--line); border-radius: var(--radius); background: var(--bg); color: var(--fg); min-width: 12rem; }
   .meta { display: flex; flex-wrap: wrap; gap: 4px 14px; }
-  .acts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
-  .acts .chip { font-size: 11px; }
+  .acts { display: flex; flex-wrap: wrap; gap: 6px; margin-left: auto; }
+  .acts .chip { font-size: 12px; display: inline-flex; align-items: center; gap: .4em; padding: .2em .7em; }
+  .acts svg { width: 12px; height: 12px; flex: none; }
+  @container (max-width: 34rem) { .acts .label { display: none; } .acts .chip { padding: .3em .55em; } }
   .acts .chip:disabled { opacity: .5; cursor: default; }
   #cmd-note:empty { display: none; }
   .stale { color: var(--warn); }
@@ -82,7 +87,7 @@
 
   <section id="instances" class="cards"></section>
 
-  <section class="grid2">
+  <section class="grid2" id="grid">
     <div class="card" id="daily">
       <h2>New videos per day</h2>
       <p class="note">Last 30 days, by the upload date each archive records, stacked by instance. <button class="toggle" id="daily-toggle" type="button">Show as table</button></p>
@@ -152,6 +157,7 @@ const fmtSigned = (v) => (num(v) == null ? '' : (num(v) > 0 ? '+' : '') + fmt(v)
 const isDate = (s) => typeof s === 'string' && s.length === 10;
 const fmtDay = (s) => (s ? new Date(isDate(s) ? s + 'T00:00:00Z' : s).toLocaleDateString(undefined, isDate(s) ? { day: 'numeric', month: 'short', timeZone: 'UTC' } : { day: 'numeric', month: 'short' }) : '');
 const fmtTime = (s) => (s ? new Date(s).toLocaleString(undefined, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '');
+const plural = (n, one, many) => (num(n) === 1 ? one : many);
 const ago = (s) => { const m = Math.round((Date.now() - new Date(s)) / 60000); return m < 1 ? 'just now' : m < 60 ? m + ' min ago' : m < 48 * 60 ? Math.round(m / 60) + ' h ago' : Math.round(m / 1440) + ' days ago'; };
 const ytUrl = (u) => (/^https:\/\/(www\.)?youtube\.com\//.test(u || '') ? u : null);
 
@@ -175,8 +181,9 @@ function drawTake() {
   if (!D.instances || !D.channels) { const e = D.errors.instances || D.errors.channels; t.textContent = e ? 'No data yet: ' + e : 'Loading…'; if (e) t.className = 'take err'; return; }
   t.className = 'take';
   const s = summary();
-  [[s.healthy + ' of ' + s.instances, ' instances healthy, '], [fmt(s.failed24), ' failed runs in the last 24 h, '], [fmt(s.videos30), ' videos and '], [fmt(s.gb30, 1), ' GB in 30 days; '],
-   [fmt(s.never), ' channels have never downloaded and '], [fmt(s.quiet), ' are quiet, silent, failed or unchecked.']].forEach(([b, rest]) => t.append(el('b', null, b), document.createTextNode(rest)));
+  [[s.healthy + ' of ' + s.instances, plural(s.instances, ' instance healthy, ', ' instances healthy, ')], [fmt(s.failed24), plural(s.failed24, ' failed run in the last 24 h, ', ' failed runs in the last 24 h, ')],
+   [fmt(s.videos30), plural(s.videos30, ' video and ', ' videos and ')], [fmt(s.gb30, 1), ' GB in 30 days; '],
+   [fmt(s.never), plural(s.never, ' channel has never downloaded and ', ' channels have never downloaded and ')], [fmt(s.quiet), plural(s.quiet, ' is quiet, silent, failed or unchecked.', ' are quiet, silent, failed or unchecked.')]].forEach(([b, rest]) => t.append(el('b', null, b), document.createTextNode(rest)));
 }
 function drawMeta() {
   const u = $('#updated'), w = $('#warn-note'); u.className = ''; w.hidden = true; w.textContent = '';
@@ -186,32 +193,53 @@ function drawMeta() {
   if ((Date.now() - new Date(m.generated)) / 60000 > 15) { u.className = 'stale'; u.textContent += ' The dashboard has not polled for over 15 minutes.'; }
   if (Array.isArray(m.warnings) && m.warnings.length) { w.hidden = false; w.className = 'stale'; w.textContent = m.warnings.length + (m.warnings.length > 1 ? ' warnings: ' : ' warning: ') + m.warnings.join(' · '); }
 }
+const ICONS = {   // 24-unit glyphs: run and stop filled, reconnect an arrow around, rescan a magnifier
+  run: [['path', { d: 'M6 4v16l13-8z', fill: 'currentColor', stroke: 'none' }]],
+  stop: [['rect', { x: 5, y: 5, width: 14, height: 14, rx: 2, fill: 'currentColor', stroke: 'none' }]],
+  reconnect: [['path', { d: 'M19.5 14.7A8 8 0 1 1 17.1 5.9' }], ['path', { d: 'M13.1 5.6 17.1 5.9 16.1 2' }]],
+  rescan: [['circle', { cx: 10, cy: 10, r: 6 }], ['path', { d: 'M14.5 14.5 21 21' }]],
+};
+function icon(name) {
+  const svg = svgEl('svg', { viewBox: '0 0 24 24', 'aria-hidden': 'true', fill: 'none', stroke: 'currentColor', 'stroke-width': 2.2, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' });
+  ICONS[name].forEach(([tag, attrs]) => svg.append(svgEl(tag, attrs)));
+  return svg;
+}
+function layout() {   // one agent: its card and the runs share the top row and the chart takes the width below
+  const single = Array.isArray(D.instances) && D.instances.length === 1;
+  const top = $('#instances'), runs = $('#runs'), grid = $('#grid');
+  top.classList.toggle('single', single);
+  if (single) { if (runs.parentElement !== top) top.append(runs); }
+  else if (runs.parentElement !== grid) grid.append(runs);
+}
 function pillClass(h) { return h === 'healthy' ? 'ok' : h === 'starting' || h === 'unknown' ? 'warn' : 'bad'; }
 function drawInstances() {
-  const box = $('#instances'); box.replaceChildren();
+  const box = $('#instances'); box.querySelectorAll('.inst').forEach((e) => e.remove());
   if (!Array.isArray(D.instances)) return;
+  const cards = document.createDocumentFragment();
   D.instances.forEach((i) => {
     const card = el('article', { class: 'card inst' + (state.instance === i.instance ? ' sel' : ''), id: 'inst-' + i.instance });
     const head = el('div', { class: 'inst-head' }); head.append(el('span', { class: 'inst-name' }, i.instance), el('span', { class: 'pill ' + pillClass(i.health) }, i.health || 'unknown'));
-    const dl = el('dl', { class: 'kv' });
-    [['exit', i.exit], ['channels', fmt(i.channels)], ['never / silent / failed', fmt(i.silent)], ['GB in 30 d', fmt(i.gb30, 1)], ['latest slot', i.last_result], ['last completed, minutes', fmt(i.last_minutes)],
-     ['added / removed', i.last_added == null && i.last_removed == null ? '' : fmtSigned(i.last_added) + ' / ' + fmt(i.last_removed)], ['failed, 24 h', fmt(i.failed_24h)]]
-      .forEach(([k, v]) => dl.append(el('dt', null, k), el('dd', null, v == null ? '' : String(v))));
-    card.append(head, el('div', { class: 'big' }, fmt(i.videos30)), el('p', { class: 'note' }, 'videos downloaded in 30 days' + (i.host ? ' · ' + i.host : '')), dl);
     const caps = Array.isArray(i.capabilities) ? i.capabilities : [];
     if (caps.length) {
       const acts = el('div', { class: 'acts' });
       [['run', 'Run now'], ['stop', 'Stop'], ['reconnect', 'Reconnect VPN'], ['rescan', 'Rescan']].forEach(([cmd, label]) => {
         if (!caps.includes(cmd)) return;
-        const b = el('button', { type: 'button', class: 'chip' }, label);
+        const b = el('button', { type: 'button', class: 'chip', title: label, 'aria-label': label });
+        b.append(icon(cmd), el('span', { class: 'label' }, label));
         b.addEventListener('click', (ev) => { ev.stopPropagation(); command(i.instance, cmd, b); });
         acts.append(b);
       });
-      card.append(acts);
+      head.append(acts);
     }
+    const dl = el('dl', { class: 'kv' });
+    [['exit', i.exit], ['channels', fmt(i.channels)], ['never / silent / failed', fmt(i.silent)], ['GB in 30 d', fmt(i.gb30, 1)], ['latest slot', i.last_result], ['last completed, minutes', fmt(i.last_minutes)],
+     ['added / removed', i.last_added == null && i.last_removed == null ? '' : fmtSigned(i.last_added) + ' / ' + fmt(i.last_removed)], ['failed, 24 h', fmt(i.failed_24h)]]
+      .forEach(([k, v]) => dl.append(el('dt', null, k), el('dd', null, v == null ? '' : String(v))));
+    card.append(head, el('div', { class: 'big' }, fmt(i.videos30)), el('p', { class: 'note' }, 'videos downloaded in 30 days' + (i.host ? ' · ' + i.host : '')), dl);
     card.addEventListener('click', () => { state.instance = state.instance === i.instance ? null : i.instance; redraw(); });
-    box.append(card);
+    cards.append(card);
   });
+  box.prepend(cards);
 }
 function niceTicks(max, count) {
   const raw = Math.max(1, max) / count, mag = Math.pow(10, Math.floor(Math.log10(raw))), norm = raw / mag;
@@ -314,7 +342,7 @@ async function command(instance, cmd, button) {
   catch (e) { note.textContent = instance + ': ' + e.message; note.className = 'err'; }
   button.disabled = false; setTimeout(load, 4000);
 }
-function redraw() { drawMeta(); drawTake(); drawInstances(); drawDaily(); drawRuns(); drawChannels(); }
+function redraw() { layout(); drawMeta(); drawTake(); drawInstances(); drawDaily(); drawRuns(); drawChannels(); }
 document.querySelectorAll('#chan-table th button').forEach((b) => b.addEventListener('click', () => { if (state.sort === b.dataset.sort) state.dir = -state.dir; else { state.sort = b.dataset.sort; state.dir = TEXT_SORT.includes(b.dataset.sort) ? 1 : -1; } drawChannels(); }));
 $('#search').addEventListener('input', (e) => { state.q = e.target.value; drawChannels(); });
 $('#reset').addEventListener('click', () => { state.instance = null; state.status = null; state.q = ''; $('#search').value = ''; redraw(); });

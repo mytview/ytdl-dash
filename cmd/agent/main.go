@@ -23,8 +23,14 @@ var version = "dev"
 
 func main() {
 	log.SetFlags(log.LstdFlags | log.LUTC)
-	if len(os.Args) > 1 && os.Args[1] == "scan" {
-		os.Exit(scanCmd(os.Args[2:]))
+	if len(os.Args) > 1 {
+		switch os.Args[1] {
+		case "scan":
+			os.Exit(scanCmd(os.Args[2:]))
+		case "version", "-version", "--version":
+			fmt.Println("ytdl-agent " + version)
+			return
+		}
 	}
 	cfg, err := agent.ConfigFromEnv(version)
 	if err != nil {
@@ -39,7 +45,7 @@ func main() {
 	svc.Start(ctx)
 	srv := &http.Server{Addr: cfg.Listen, Handler: svc.Handler(), ReadHeaderTimeout: 10 * time.Second}
 	go func() {
-		log.Printf("ytdl-sub agent %s for instance %s listening on %s (log %s, media %s)", version, cfg.Instance, cfg.Listen, cfg.LogFile, cfg.MediaDir)
+		log.Printf("ytdl-dash agent %s for instance %s listening on %s (log %s, media %s)", version, cfg.Instance, cfg.Listen, cfg.LogFile, cfg.MediaDir)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatal(err)
 		}

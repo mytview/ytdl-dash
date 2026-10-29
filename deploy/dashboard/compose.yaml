@@ -1,0 +1,20 @@
+# The dashboard, in a folder of its own, over every agent listed in AGENTS. Agents on this host are reached as
+# host.docker.internal:<their port>, agents elsewhere by address.
+#
+#   AGENTS=main=http://host.docker.internal:9100,second=http://192.0.2.10:9100
+#   TOKEN=the-agents-token           # optional: the buttons
+name: ytdl-dash
+services:
+  dashboard:
+    image: ghcr.io/mytview/ytdl-dash:latest
+    container_name: ytdl-dash
+    restart: unless-stopped
+    ports:
+      - ${DASH_PORT:-8089}:8089
+    extra_hosts:
+      - host.docker.internal:host-gateway              # this host, for the agents running on it
+    environment:
+      AGENTS: ${AGENTS:?list the agents, e.g. main=http://host.docker.internal:9100}
+      TOKEN: ${TOKEN:-}
+      POLL: 60s
+      TITLE: ${TITLE:-ytdl-dash}

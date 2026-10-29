@@ -1,6 +1,6 @@
 // Package runlog reads ytdl-sub's cron log (the file the LinuxServer cron mod writes, /config/.cron.log) and turns it into
 // events: runs starting and ending, the subscription being processed, the rows of the Download Summary, and every plain
-// line for the trigger matcher. The run markers are the ones deploy/cron.sh prints; the summary rows are ytdl-sub's own
+// line for the trigger matcher. The run markers are the ones deploy/instance/cron.sh prints; the summary rows are ytdl-sub's own
 // output and the one part that can change with a ytdl-sub release, so the parser is kept in one place and tested against
 // real samples in testdata.
 package runlog
@@ -187,8 +187,19 @@ func (t *Tailer) consume(r io.Reader) (int64, error) {
 
 // Follow polls until Stop is called. It never returns an error: a missing file is retried, since the log only appears
 // after the first cron run.
+// stopCh hands out the stop channel, made once under the lock, so Stop may come from another goroutine, before
+// Follow, or twice.
+func (t *Tailer) stopCh() chan struct{} {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if t.stop == nil {
+		t.stop = make(chan struct{})
+	}
+	return t.stop
+}
+
 func (t *Tailer) Follow() {
-	t.stop = make(chan struct{})
+	stop := t.stopCh()
 	iv := t.Interval
 	if iv <= 0 {
 		iv = time.Second
@@ -197,7 +208,7 @@ func (t *Tailer) Follow() {
 	defer tick.Stop()
 	for {
 		select {
-		case <-t.stop:
+		case <-stop:
 			return
 		case <-tick.C:
 			t.poll()
@@ -235,7 +246,10 @@ func (t *Tailer) poll() {
 
 // Stop ends Follow.
 func (t *Tailer) Stop() {
-	if t.stop != nil {
-		close(t.stop)
+	stop := t.stopCh()
+	select {
+	case <-stop:
+	default:
+		close(stop)
 	}
 }

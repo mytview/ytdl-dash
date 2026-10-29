@@ -62,6 +62,7 @@ type Service struct {
 	scanTook   time.Duration
 	subs       []subs.Subscription
 	subsErr    string
+	subsRetry  bool // the last read fell back to the file although the socket is configured: try again each minute
 	exit       gluetun.Exit
 	exitErr    error
 	ytdlVer    string
@@ -78,10 +79,18 @@ func New(cfg Config) (*Service, error) {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		if d.Available(ctx) {
 			s.docker = d
+			if s.cfg.Host == "" { // the machine's name is the daemon's; this container's hostname is just its id
+				if name, err := d.Info(ctx); err == nil {
+					s.cfg.Host = name
+				}
+			}
 		} else {
 			log.Printf("docker: socket %s does not answer; health, run, stop and version come without it", cfg.DockerSocket)
 		}
 		cancel()
+	}
+	if s.cfg.Host == "" {
+		s.cfg.Host, _ = os.Hostname()
 	}
 	if cfg.GluetunURL != "" {
 		s.gluetun = &gluetun.Client{BaseURL: cfg.GluetunURL, APIKey: cfg.GluetunKey, Log: log.Printf}
@@ -118,6 +127,7 @@ func (s *Service) Start(ctx context.Context) {
 	if s.current != nil { // a run open at the end of the log: still going, or killed with the container; the tail decides
 		s.currentSub = ""
 	}
+	s.dedupeRunsLocked() // the saved history and the replayed log overlap
 	s.mu.Unlock()
 	log.Printf("replayed %s: %d runs", s.cfg.LogFile, len(s.runs))
 	go s.tailer.Follow()
@@ -143,7 +153,7 @@ func (s *Service) Start(ctx context.Context) {
 			case <-ctx.Done():
 				return
 			case <-t.C:
-				s.refreshFast(ctx)
+				s.tick(ctx)
 			}
 		}
 	}()
@@ -341,6 +351,10 @@ func (s *Service) loadSubs() {
 	var list []subs.Subscription
 	var err error
 	source := s.cfg.SubsFile
+	s.mu.RLock()
+	retrying := s.subsRetry
+	s.mu.RUnlock()
+	fellBack := false
 	if s.docker != nil && s.cfg.Container != "" && s.cfg.SubsInContainer != "" {
 		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 		out, e := s.docker.ExecOutput(ctx, s.cfg.Container, []string{"cat", s.cfg.SubsInContainer})
@@ -349,7 +363,10 @@ func (s *Service) loadSubs() {
 			list, err = subs.Parse([]byte(out))
 			source = s.cfg.Container + ":" + s.cfg.SubsInContainer
 		} else {
-			log.Printf("subscriptions: %v; reading %s instead", e, s.cfg.SubsFile)
+			fellBack = true
+			if !retrying { // once, not every minute while the container is down
+				log.Printf("subscriptions: %v; reading %s until the container answers", e, s.cfg.SubsFile)
+			}
 		}
 	}
 	if list == nil && err == nil {
@@ -357,6 +374,7 @@ func (s *Service) loadSubs() {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.subsRetry = fellBack
 	switch {
 	case err != nil:
 		s.subsErr = err.Error()
@@ -367,7 +385,7 @@ func (s *Service) loadSubs() {
 	default:
 		s.clearWarning("subscriptions")
 	}
-	if len(list) != len(s.subs) {
+	if len(list) != len(s.subs) || (retrying && !fellBack) {
 		log.Printf("subscriptions: %d from %s", len(list), source)
 	}
 	s.subs, s.subsErr = list, ""
@@ -407,14 +425,18 @@ func (s *Service) loadState() {
 	s.mu.Unlock()
 }
 
-// saveState writes the run history; replayed runs merge with it by start time so a truncated log loses nothing.
-func (s *Service) saveState() {
-	s.mu.Lock()
+// dedupeRunsLocked keeps one run per start time, sorted and capped. The saved history and the replayed log overlap
+// after a restart; of two copies the later one wins, unless the earlier carries counts from an archive diff that the
+// log never had.
+func (s *Service) dedupeRunsLocked() {
 	byStart := map[string]model.Run{}
 	for _, r := range s.runs {
+		if prev, ok := byStart[r.Start]; ok && prev.Source != "" && r.Source == "" {
+			continue
+		}
 		byStart[r.Start] = r
 	}
-	var runs []model.Run
+	runs := make([]model.Run, 0, len(byStart))
 	for _, r := range byStart {
 		runs = append(runs, r)
 	}
@@ -423,7 +445,25 @@ func (s *Service) saveState() {
 		runs = runs[len(runs)-500:]
 	}
 	s.runs = runs
-	p := persisted{Runs: runs, Verdicts: s.verdicts}
+}
+
+// tick is the minute's work: the cheap refresh, and another read of the subscriptions through the socket when the
+// last one fell back to the file, which happens when the agent starts before its container.
+func (s *Service) tick(ctx context.Context) {
+	s.mu.RLock()
+	retry := s.subsRetry
+	s.mu.RUnlock()
+	if retry {
+		s.loadSubs()
+	}
+	s.refreshFast(ctx)
+}
+
+// saveState writes the run history; replayed runs merge with it by start time so a truncated log loses nothing.
+func (s *Service) saveState() {
+	s.mu.Lock()
+	s.dedupeRunsLocked()
+	p := persisted{Runs: s.runs, Verdicts: s.verdicts}
 	s.mu.Unlock()
 	if err := os.MkdirAll(s.cfg.StateDir, 0o755); err != nil {
 		return
