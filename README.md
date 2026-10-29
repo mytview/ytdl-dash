@@ -207,7 +207,7 @@ TRIGGERS: "Sign in to confirm => gluetun-reconnect; HTTP Error 429 => notify:htt
 
 Every agent answers `GET /api/status`, `/api/instance`, `/api/channels`, `/api/runs?limit=`, `/api/daily?days=`,
 `/api/log?tail=`, `/api/all` and `/healthz`; and, with a token, `POST /api/run`, `/api/stop`, `/api/reconnect`,
-`/api/rescan` with `Authorization: Bearer <token>`. The dashboard serves `/data/{instances,channels,runs,daily,meta}.json`
+`/api/rescan` with `Authorization: Bearer <token>`. The dashboard serves `/data/{instances,channels,runs,daily,meta,summary}.json` (summary is the fleet in one object, for a home dashboard's card)
 and `POST /api/<instance>/<command>`.
 
 ## What can break, and what is done about it

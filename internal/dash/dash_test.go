@@ -72,6 +72,12 @@ func TestMergeNamesAndProxy(t *testing.T) {
 		t.Errorf("daily %v", daily)
 	}
 
+	var sum model.Summary
+	json.Unmarshal(d.files["summary.json"], &sum)
+	if sum.Instances != 4 || sum.Healthy != 3 || sum.Unreachable != 1 || sum.Warnings != 2 {
+		t.Errorf("summary %+v", sum)
+	}
+
 	srv := httptest.NewServer(d.Handler())
 	defer srv.Close()
 	resp, _ := http.Post(srv.URL+"/api/beta/rescan", "", nil)

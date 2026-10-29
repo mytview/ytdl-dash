@@ -90,6 +90,25 @@ type Meta struct {
 	Agents    []string `json:"agents,omitempty"` // dashboard: the agents it merged
 }
 
+// Summary is the fleet in one object, for a home dashboard's single card: the dashboard serves it as
+// /data/summary.json next to the five files the page uses.
+type Summary struct {
+	Generated   string  `json:"generated"`
+	Instances   int     `json:"instances"`
+	Healthy     int     `json:"healthy"`
+	Unreachable int     `json:"unreachable"`
+	Running     int     `json:"running"` // runs in progress right now
+	Channels    int     `json:"channels"`
+	Silent      int     `json:"silent"` // channels never, silent or failed
+	Videos30    int     `json:"videos30"`
+	GB          float64 `json:"gb"`
+	Runs24h     int     `json:"runs_24h"`
+	Failed24h   int     `json:"failed_24h"`
+	LastEnd     string  `json:"last_end"`    // the most recent run end across the fleet
+	LastResult  string  `json:"last_result"` // that instance's last result
+	Warnings    int     `json:"warnings"`
+}
+
 // Status is the agent's own answer on GET /api/status.
 type Status struct {
 	Instance Instance `json:"instance"`

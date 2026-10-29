@@ -181,7 +181,7 @@ func (a *agentState) label() string {
 	return a.cfg.URL
 }
 
-// merge builds the five files from the agents' last answers, in the configured order.
+// merge builds the six files from the agents' last answers, in the configured order.
 func (d *Dash) merge(took time.Duration) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
@@ -262,6 +262,35 @@ func (d *Dash) merge(took time.Duration) {
 	d.files["runs.json"], _ = json.Marshal(runs)
 	d.files["daily.json"], _ = json.Marshal(dailyRows)
 	d.files["meta.json"], _ = json.Marshal(meta)
+	d.files["summary.json"], _ = json.Marshal(summarize(instances, meta))
+}
+
+// summarize folds the instances into the one-object view a home dashboard shows on a single card.
+func summarize(instances []model.Instance, meta model.Meta) model.Summary {
+	s := model.Summary{Generated: meta.Generated, Warnings: len(meta.Warnings)}
+	for _, i := range instances {
+		s.Instances++
+		switch i.Health {
+		case "healthy":
+			s.Healthy++
+		case "unreachable":
+			s.Unreachable++
+		}
+		if strings.HasPrefix(i.LastResult, "running") {
+			s.Running++
+		}
+		s.Channels += i.Channels
+		s.Silent += i.Silent
+		s.Videos30 += i.Videos30
+		s.GB += i.GB
+		s.Runs24h += i.Runs24h
+		s.Failed24h += i.Failed24h
+		if i.LastEnd > s.LastEnd {
+			s.LastEnd, s.LastResult = i.LastEnd, i.LastResult
+		}
+	}
+	s.GB = float64(int(s.GB*10)) / 10
+	return s
 }
 
 // Handler serves the page, the data and the command proxy.
