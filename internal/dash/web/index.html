@@ -70,6 +70,7 @@
   input[type=search] { font: inherit; font-size: 13px; padding: .25em .6em; border: 1px solid var(--line); border-radius: var(--radius); background: var(--bg); color: var(--fg); min-width: 12rem; }
   .meta { display: flex; flex-wrap: wrap; gap: 4px 14px; }
   .acts { display: flex; flex-wrap: wrap; gap: 6px; }
+  .foot { font-size: 12px; color: var(--muted); }   /* the machine and the ytdl-sub version: there when you look for them */
   .acts .chip { font-size: 12px; display: inline-flex; align-items: center; gap: .4em; padding: .2em .7em; }
   .acts svg { width: 12px; height: 12px; flex: none; }
   @container (max-width: 34rem) { .acts .label { display: none; } .acts .chip { padding: .3em .55em; } }
@@ -232,10 +233,7 @@ function drawInstances() {
      ['took', i.last_minutes == null ? '' : fmt(i.last_minutes) + ' min', 'the last completed run'],
      ['added / removed', i.last_added == null && i.last_removed == null ? '' : fmtSigned(i.last_added) + ' / ' + fmt(i.last_removed)], ['failed, 24 h', fmt(i.failed_24h)]]
       .forEach(([k, v, tip]) => { const s = v == null ? '' : String(v); dl.append(el('dt', tip ? { title: tip } : null, k), el('dd', { title: s }, s)); });
-    const where = [i.host, i.ytdl_sub ? 'ytdl-sub ' + i.ytdl_sub : ''].filter(Boolean).join(' · ');
-    card.append(head, el('div', { class: 'big' }, fmt(i.videos30)), el('p', { class: 'note' }, 'videos in 30 days'));
-    if (where) card.append(el('p', { class: 'note' }, where));
-    card.append(dl);
+    card.append(head, el('div', { class: 'big' }, fmt(i.videos30)), el('p', { class: 'note' }, 'videos in 30 days'), dl);
     const caps = Array.isArray(i.capabilities) ? i.capabilities : [];
     if (caps.length) {
       const acts = el('div', { class: 'acts' });
@@ -248,6 +246,9 @@ function drawInstances() {
       });
       card.append(acts);
     }
+    const ver = i.ytdl_sub ? String(i.ytdl_sub) : '';   // ytdl-sub versions by date, plus a build hash after '+': the date is enough here
+    const foot = [i.host, ver ? 'ytdl-sub ' + ver.split('+')[0] : ''].filter(Boolean).join(' · ');
+    if (foot) card.append(el('p', { class: 'note foot', title: ver ? 'ytdl-sub ' + ver : '' }, foot));
     card.addEventListener('click', () => { state.instance = state.instance === i.instance ? null : i.instance; redraw(); });
     cards.append(card);
   });
