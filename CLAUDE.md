@@ -105,8 +105,8 @@ actions sit in its header as icon buttons, labelled where the card is wider than
 
 Not done:
 
-- `internal/dash`, `internal/dockerx` and `internal/gluetun` have no tests. The service test covers the agent end to
-  end against files; a fake agent for the dashboard is the next test to write.
+- `internal/gluetun` has no tests. The agent's service test covers the agent end to end against files and a fake
+  Docker socket; the dashboard's test runs it over fake agents.
 - Archive to subscription matching is exact equality between the archive file name and the subscription name. A
   renamed subscription shows as never downloaded under its new name. Accepted.
 

@@ -11,6 +11,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"net/url"
 	"sort"
 	"strings"
 	"sync"
@@ -24,7 +25,7 @@ var web embed.FS
 
 // Agent is one configured agent.
 type Agent struct {
-	Name string // from AGENTS ("name=url") or the agent's own instance name once reached
+	Name string // a label from AGENTS ("name=url") until the agent answers; then the agent's own instance name
 	URL  string
 }
 
@@ -67,7 +68,7 @@ type Dash struct {
 // New builds the dashboard.
 func New(cfg Config) (*Dash, error) {
 	if len(cfg.Agents) == 0 {
-		return nil, fmt.Errorf("AGENTS is required: a comma-separated list of agent URLs, each optionally 'name=url'")
+		return nil, fmt.Errorf("AGENTS is required: a comma-separated list of agent URLs")
 	}
 	if cfg.Poll <= 0 {
 		cfg.Poll = time.Minute
@@ -168,6 +169,18 @@ func (d *Dash) fetch(ctx context.Context, base string) (*answer, error) {
 	return &ans, nil
 }
 
+// label names an agent on the page: the agent's own instance name once it has answered, a name given in AGENTS, or
+// the host and port of its URL until then.
+func (a *agentState) label() string {
+	if a.cfg.Name != "" {
+		return a.cfg.Name
+	}
+	if u, err := url.Parse(a.cfg.URL); err == nil && u.Host != "" {
+		return u.Host
+	}
+	return a.cfg.URL
+}
+
 // merge builds the five files from the agents' last answers, in the configured order.
 func (d *Dash) merge(took time.Duration) {
 	d.mu.Lock()
@@ -179,10 +192,7 @@ func (d *Dash) merge(took time.Duration) {
 	meta := model.Meta{Generated: time.Now().UTC().Format("2006-01-02T15:04:05Z"), Seconds: float64(int(took.Seconds()*10)) / 10, Warnings: []string{}}
 	names := map[string]bool{}
 	for _, a := range d.agents {
-		name := a.cfg.Name
-		if name == "" {
-			name = a.cfg.URL
-		}
+		name := a.label()
 		meta.Agents = append(meta.Agents, name)
 		if a.last == nil {
 			instances = append(instances, model.Instance{Instance: name, Health: "unreachable", Exit: "", LastResult: "none"})
@@ -196,6 +206,9 @@ func (d *Dash) merge(took time.Duration) {
 		}
 		if a.last.Running && a.last.Current != "" {
 			inst.LastResult = "running: " + a.last.Current
+		}
+		if names[inst.Instance] {
+			meta.Warnings = append(meta.Warnings, fmt.Sprintf("%s: two agents report this instance name; give each agent its own INSTANCE", inst.Instance))
 		}
 		instances = append(instances, inst)
 		names[inst.Instance] = true

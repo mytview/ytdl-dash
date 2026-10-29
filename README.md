@@ -95,7 +95,8 @@ services:
 Behind a VPN, uncomment the gluetun service and the lines marked `vpn`, and give gluetun your provider's settings.
 
 [`dashboard/`](deploy/dashboard/) runs the dashboard over every agent, listed by the address of the machine it runs on
-and the agent's port. Edit `AGENTS` and `TOKEN`, `docker compose up -d`, open http://localhost:8089.
+and the agent's port; each card takes the agent's own `INSTANCE`. Edit `AGENTS` and `TOKEN`, `docker compose up -d`,
+open http://localhost:8089.
 
 ```yaml
 name: ytdl-dash
@@ -107,8 +108,8 @@ services:
     ports:
       - 8089:8089
     environment:
-      AGENTS: main=http://192.0.2.10:9100,second=http://192.0.2.10:9101   # each agent: its host's address and its port
-      TOKEN: pick-a-long-random-one                                       # the agents' token; empty = no buttons
+      AGENTS: http://192.0.2.10:9100,http://192.0.2.10:9101   # each agent: its host's address and its port
+      TOKEN: pick-a-long-random-one                           # the agents' token; empty = no buttons
       POLL: 60s
       TITLE: ytdl-dash
 ```
@@ -196,7 +197,7 @@ TRIGGERS: "Sign in to confirm => gluetun-reconnect; HTTP Error 429 => notify:htt
 
 | Variable | Default | What it is |
 |---|---|---|
-| `AGENTS` | required | comma-separated agent URLs, each optionally `name=url` |
+| `AGENTS` | required | comma-separated agent URLs; each card is named by the agent's `INSTANCE` (`name=url` labels one until it answers) |
 | `TOKEN` | empty | the agents' token, forwarded with commands |
 | `POLL` | `60s` | how often agents are asked; the page refreshes at the same rate |
 | `LISTEN` | `:8089` | the address inside the container; publish it with `ports` |

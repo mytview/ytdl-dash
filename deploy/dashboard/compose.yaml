@@ -1,5 +1,5 @@
 # The dashboard, in a folder of its own, over every agent listed in AGENTS: the address of the machine each one runs
-# on and the agent's port. TOKEN is the agents' token, for the buttons.
+# on and the agent's port. Each card takes the agent's own INSTANCE name. TOKEN is the agents' token, for the buttons.
 name: ytdl-dash
 services:
   dashboard:
@@ -9,7 +9,7 @@ services:
     ports:
       - 8089:8089
     environment:
-      AGENTS: main=http://192.0.2.10:9100,second=http://192.0.2.10:9101   # each agent: its host's address and its port
-      TOKEN: pick-a-long-random-one                                       # the agents' token; empty = no buttons
+      AGENTS: http://192.0.2.10:9100,http://192.0.2.10:9101   # each agent: its host's address and its port
+      TOKEN: pick-a-long-random-one                           # the agents' token; empty = no buttons
       POLL: 60s
       TITLE: ytdl-dash
