@@ -34,13 +34,17 @@
   .grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 24rem), 1fr)); gap: 12px; }
   .inst { cursor: pointer; }
   .inst.sel { outline: 2px solid var(--sel); }
-  .inst { container-type: inline-size; }
+  .inst { container-type: inline-size; grid-template-columns: minmax(0, 1fr) auto; }
+  .inst > * { grid-column: 1 / -1; }
+  .inst > .inst-head { grid-column: 1; }
+  .inst > .acts { grid-column: 2; grid-row: 1; align-self: center; justify-content: flex-end; }   /* a wide card: beside the name */
   .inst-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
   .inst-name { font-size: 17px; font-weight: 600; }
   .pill { font-size: 12px; border-radius: 999px; padding: 0 .6em; border: 1px solid var(--line); white-space: nowrap; }
   .pill.ok { color: var(--ok); } .pill.warn { color: var(--warn); } .pill.bad { color: var(--bad); }
-  .kv { display: grid; grid-template-columns: 1fr auto; gap: .15em 8px; font-size: 13px; margin: 0; }
-  .kv dt { color: var(--fg2); margin: 0; } .kv dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
+  .kv { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: .15em 8px; font-size: 13px; margin: 0; }
+  .kv dt { color: var(--fg2); margin: 0; white-space: nowrap; }
+  .kv dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .big { font-size: 30px; line-height: 1.1; }
   .chart { min-height: 220px; position: relative; }
   .chart svg { display: block; }
@@ -65,10 +69,14 @@
   .chip.on { background: var(--sel); color: #fff; border-color: transparent; }
   input[type=search] { font: inherit; font-size: 13px; padding: .25em .6em; border: 1px solid var(--line); border-radius: var(--radius); background: var(--bg); color: var(--fg); min-width: 12rem; }
   .meta { display: flex; flex-wrap: wrap; gap: 4px 14px; }
-  .acts { display: flex; flex-wrap: wrap; gap: 6px; margin-left: auto; }
+  .acts { display: flex; flex-wrap: wrap; gap: 6px; }
   .acts .chip { font-size: 12px; display: inline-flex; align-items: center; gap: .4em; padding: .2em .7em; }
   .acts svg { width: 12px; height: 12px; flex: none; }
   @container (max-width: 34rem) { .acts .label { display: none; } .acts .chip { padding: .3em .55em; } }
+  @container (max-width: 24rem) {   /* a narrow card: the actions get a row of their own at the bottom */
+    .inst > .inst-head { grid-column: 1 / -1; }
+    .inst > .acts { grid-column: 1 / -1; grid-row: auto; justify-content: flex-start; margin-top: 2px; }
+  }
   .acts .chip:disabled { opacity: .5; cursor: default; }
   #cmd-note:empty { display: none; }
   .stale { color: var(--warn); }
@@ -219,6 +227,15 @@ function drawInstances() {
   D.instances.forEach((i) => {
     const card = el('article', { class: 'card inst' + (state.instance === i.instance ? ' sel' : ''), id: 'inst-' + i.instance });
     const head = el('div', { class: 'inst-head' }); head.append(el('span', { class: 'inst-name' }, i.instance), el('span', { class: 'pill ' + pillClass(i.health) }, i.health || 'unknown'));
+    const dl = el('dl', { class: 'kv' });
+    [['exit', i.exit], ['channels', fmt(i.channels)], ['stalled', fmt(i.silent), 'never downloaded, silent or failed'], ['GB in 30 d', fmt(i.gb30, 1)], ['last run', i.last_result],
+     ['took', i.last_minutes == null ? '' : fmt(i.last_minutes) + ' min', 'the last completed run'],
+     ['added / removed', i.last_added == null && i.last_removed == null ? '' : fmtSigned(i.last_added) + ' / ' + fmt(i.last_removed)], ['failed, 24 h', fmt(i.failed_24h)]]
+      .forEach(([k, v, tip]) => { const s = v == null ? '' : String(v); dl.append(el('dt', tip ? { title: tip } : null, k), el('dd', { title: s }, s)); });
+    const where = [i.host, i.ytdl_sub ? 'ytdl-sub ' + i.ytdl_sub : ''].filter(Boolean).join(' · ');
+    card.append(head, el('div', { class: 'big' }, fmt(i.videos30)), el('p', { class: 'note' }, 'videos in 30 days'));
+    if (where) card.append(el('p', { class: 'note' }, where));
+    card.append(dl);
     const caps = Array.isArray(i.capabilities) ? i.capabilities : [];
     if (caps.length) {
       const acts = el('div', { class: 'acts' });
@@ -229,13 +246,8 @@ function drawInstances() {
         b.addEventListener('click', (ev) => { ev.stopPropagation(); command(i.instance, cmd, b); });
         acts.append(b);
       });
-      head.append(acts);
+      card.append(acts);
     }
-    const dl = el('dl', { class: 'kv' });
-    [['exit', i.exit], ['channels', fmt(i.channels)], ['never / silent / failed', fmt(i.silent)], ['GB in 30 d', fmt(i.gb30, 1)], ['latest slot', i.last_result], ['last completed, minutes', fmt(i.last_minutes)],
-     ['added / removed', i.last_added == null && i.last_removed == null ? '' : fmtSigned(i.last_added) + ' / ' + fmt(i.last_removed)], ['failed, 24 h', fmt(i.failed_24h)]]
-      .forEach(([k, v]) => dl.append(el('dt', null, k), el('dd', null, v == null ? '' : String(v))));
-    card.append(head, el('div', { class: 'big' }, fmt(i.videos30)), el('p', { class: 'note' }, 'videos downloaded in 30 days' + (i.host ? ' · ' + i.host : '') + (i.ytdl_sub ? ' · ytdl-sub ' + i.ytdl_sub : '')), dl);
     card.addEventListener('click', () => { state.instance = state.instance === i.instance ? null : i.instance; redraw(); });
     cards.append(card);
   });
