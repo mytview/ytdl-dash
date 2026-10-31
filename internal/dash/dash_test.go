@@ -22,8 +22,8 @@ func fakeAgent(t *testing.T, instance string, got *[]string) *httptest.Server {
 			Runs:     []model.Run{{Instance: instance, Start: "2026-10-29T10:10:00Z", Result: "ok"}},
 			Daily:    []model.DailyRow{{"day": "2026-10-29", instance: 2}}})
 	})
-	mux.HandleFunc("POST /api/rescan", func(w http.ResponseWriter, r *http.Request) {
-		*got = append(*got, instance+" "+r.Header.Get("Authorization"))
+	mux.HandleFunc("POST /api/{cmd}", func(w http.ResponseWriter, r *http.Request) {
+		*got = append(*got, instance+" "+r.PathValue("cmd")+" "+r.URL.RawQuery+" "+r.Header.Get("Authorization"))
 		w.Write([]byte(`{"result":"rescanning"}`))
 	})
 	srv := httptest.NewServer(mux)
@@ -81,8 +81,12 @@ func TestMergeNamesAndProxy(t *testing.T) {
 	srv := httptest.NewServer(d.Handler())
 	defer srv.Close()
 	resp, _ := http.Post(srv.URL+"/api/beta/rescan", "", nil)
-	if resp.StatusCode != http.StatusOK || len(cmds) != 1 || cmds[0] != "beta Bearer t" {
+	if resp.StatusCode != http.StatusOK || len(cmds) != 1 || cmds[0] != "beta rescan  Bearer t" {
 		t.Errorf("proxy: %d %v", resp.StatusCode, cmds)
+	}
+	resp, _ = http.Post(srv.URL+"/api/beta/run?sub=A%20B", "", nil) // a check of one subscription: the query goes through
+	if resp.StatusCode != http.StatusOK || len(cmds) != 2 || cmds[1] != "beta run sub=A%20B Bearer t" {
+		t.Errorf("proxy with a query: %d %v", resp.StatusCode, cmds)
 	}
 	resp, _ = http.Post(srv.URL+"/api/nobody/rescan", "", nil)
 	if resp.StatusCode != http.StatusNotFound {

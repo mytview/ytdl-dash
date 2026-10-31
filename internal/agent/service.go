@@ -54,6 +54,8 @@ type Service struct {
 	runs       []model.Run
 	current    *model.Run
 	currentSub string
+	pendingSub string // a check was started for this subscription; its start marker is due
+	pendingAt  time.Time
 	rows       []runlog.Event
 	verdicts   map[string]verdict
 	startSnap  map[string]*archive.Entry
@@ -183,7 +185,13 @@ func (s *Service) handle(ev runlog.Event) {
 			r.Result, r.End = "killed", ev.Time.UTC().Format(timeFmt)
 			s.appendRunLocked(r)
 		}
-		s.current = &model.Run{Instance: s.cfg.Instance, Start: ev.Time.UTC().Format(timeFmt), Result: "running"}
+		s.current = &model.Run{Instance: s.cfg.Instance, Start: ev.Time.UTC().Format(timeFmt), Result: "running", Sub: ev.Name}
+		if live && s.current.Sub == "" && s.pendingSub != "" && time.Since(s.pendingAt) < 2*time.Minute {
+			s.current.Sub = s.pendingSub // a wrapper that forwards --match without naming it in its marker
+		}
+		if live {
+			s.pendingSub = ""
+		}
 		s.rows, s.currentSub = nil, ""
 		if live {
 			snap := s.archives
@@ -707,18 +715,30 @@ func (s *Service) Current() string {
 	return s.currentSub
 }
 
-// RunNow starts a run in the ytdl-sub container.
-func (s *Service) RunNow(ctx context.Context) error {
+// RunNow starts a run in the ytdl-sub container: the whole subscriptions file, or one subscription when sub names it,
+// with "--match NAME" appended to RUN_COMMAND for the wrapper to forward. ytdl-sub matches names by substring, so a
+// name contained in another subscription's runs both.
+func (s *Service) RunNow(ctx context.Context, sub string) error {
 	if s.docker == nil || s.cfg.Container == "" {
 		return fmt.Errorf("run needs YTDL_CONTAINER and the docker socket")
 	}
-	s.mu.RLock()
-	running := s.current != nil
-	s.mu.RUnlock()
+	s.mu.Lock()
+	running, known := s.current != nil, sub == "" || s.subscribed(sub)
+	if !running && known && sub != "" {
+		s.pendingSub, s.pendingAt = sub, time.Now()
+	}
+	s.mu.Unlock()
 	if running {
 		return fmt.Errorf("a run is already going")
 	}
-	return s.docker.ExecDetached(ctx, s.cfg.Container, shellWords(s.cfg.RunCommand), s.cfg.RunUser)
+	if !known {
+		return fmt.Errorf("no subscription named %q", sub)
+	}
+	args := shellWords(s.cfg.RunCommand)
+	if sub != "" {
+		args = append(args, "--match", sub)
+	}
+	return s.docker.ExecDetached(ctx, s.cfg.Container, args, s.cfg.RunUser)
 }
 
 // StopRun ends the running ytdl-sub process.

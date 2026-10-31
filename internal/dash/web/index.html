@@ -70,7 +70,9 @@
   input[type=search] { font: inherit; font-size: 13px; padding: .25em .6em; border: 1px solid var(--line); border-radius: var(--radius); background: var(--bg); color: var(--fg); min-width: 12rem; }
   .meta { display: flex; flex-wrap: wrap; gap: 4px 14px; }
   .acts { display: flex; flex-wrap: wrap; gap: 6px; }
-  .foot { font-size: 12px; color: var(--muted); }   /* the machine and the ytdl-sub version: there when you look for them */
+  .foot { font-size: 12px; color: var(--muted); }
+  .check { display: inline-flex; align-items: center; padding: .1em .45em; margin-right: .5em; vertical-align: middle; } .check svg { width: 10px; height: 10px; }
+  .sub { color: var(--fg2); }   /* the machine and the ytdl-sub version: there when you look for them */
   .acts .chip { font-size: 12px; display: inline-flex; align-items: center; gap: .4em; padding: .2em .7em; }
   .acts svg { width: 12px; height: 12px; flex: none; }
   @container (max-width: 34rem) { .acts .label { display: none; } .acts .chip { padding: .3em .55em; } }
@@ -317,7 +319,9 @@ function drawRuns() {
   if (!Array.isArray(D.runs)) { const tr = el('tr'); tr.append(el('td', { colspan: 7 }, D.errors.runs ? 'runs.json: ' + D.errors.runs : 'Loading…')); tb.append(tr); return; }
   [...D.runs].sort((a, b) => (a.start < b.start ? 1 : -1)).filter((r) => !state.instance || r.instance === state.instance).forEach((r) => {
     const tr = el('tr');
-    [[r.instance], [fmtTime(r.start)], [fmt(r.minutes), 'num'], [r.result, 'r-' + r.result], [fmtSigned(r.added), 'num'], [fmt(r.removed), 'num'], [fmt(r.kept), 'num hide-narrow']]
+    const tdInst = el('td', null, r.instance); if (r.sub) tdInst.append(el('span', { class: 'sub', title: 'a check of this one subscription' }, ' · ' + r.sub));
+    tr.append(tdInst);
+    [[fmtTime(r.start)], [fmt(r.minutes), 'num'], [r.result, 'r-' + r.result], [fmtSigned(r.added), 'num'], [fmt(r.removed), 'num'], [fmt(r.kept), 'num hide-narrow']]
       .forEach(([v, cls]) => tr.append(el('td', cls ? { class: cls } : null, v == null ? '' : String(v))));
     tb.append(tr);
   });
@@ -336,22 +340,31 @@ function drawChannels() {
   rows.sort((a, b) => { const av = a[k] ?? -Infinity, bv = b[k] ?? -Infinity; return ((av < bv ? -1 : av > bv ? 1 : 0) * state.dir) || String(a.name).localeCompare(b.name); });
   count.textContent = rows.length + ' of ' + D.channels.length;
   const maxGb = Math.max(1, ...D.channels.map((c) => num(c.gb) || 0));
+  const canRun = new Set((D.instances || []).filter((i) => Array.isArray(i.capabilities) && i.capabilities.includes('run')).map((i) => i.instance));
   rows.forEach((c) => {
     const tr = el('tr');
     const tdLink = el('td'); const u = ytUrl(c.url); if (u) tdLink.append(el('a', { href: u, target: '_blank', rel: 'noopener' }, c.handle || u)); else tdLink.textContent = c.handle || '';
     const tdGb = el('td', { class: 'num' }); const bar = el('span', { class: 'bar' }); bar.style.width = Math.round(60 * (num(c.gb) || 0) / maxGb) + 'px'; tdGb.append(bar, document.createTextNode(fmt(c.gb, 1)));
     const check = c.check ? (c.check === 'ok' ? '✔ ' : '✘ ') + fmtTime(c.checked_at) + (num(c.check_added) ? ' +' + fmt(c.check_added) : '') : '';
-    tr.append(el('td', null, c.name), tdLink, el('td', null, c.instance), el('td', { class: 'hide-narrow' }, c.group || ''), el('td', { class: 'hide-narrow' }, c.preset === 'keep' ? 'keep' : ''),
+    const tdName = el('td');
+    if (canRun.has(c.instance)) {   // run ytdl-sub for this one subscription, out of schedule
+      const b = el('button', { type: 'button', class: 'chip check', title: 'Check ' + c.name + ' now: a run of ytdl-sub for this subscription only', 'aria-label': 'Check ' + c.name + ' now' });
+      b.append(icon('run'));
+      b.addEventListener('click', () => command(c.instance, 'run', b, c.name));
+      tdName.append(b);
+    }
+    tdName.append(document.createTextNode(c.name));
+    tr.append(tdName, tdLink, el('td', null, c.instance), el('td', { class: 'hide-narrow' }, c.group || ''), el('td', { class: 'hide-narrow' }, c.preset === 'keep' ? 'keep' : ''),
       el('td', null, fmtDay(c.last_file)), el('td', { class: 'num' }, c.days_since_file == null ? '' : fmt(c.days_since_file)), el('td', { class: 'num' }, fmt(c.files30)), el('td', { class: 'num hide-narrow' }, fmt(c.files)),
       tdGb, el('td', { class: 'num hide-narrow' }, fmt(c.kept)), el('td', { class: 'hide-narrow' + (c.check === 'failed' ? ' st failed' : '') }, check), el('td', { class: 'st ' + (c.status || '') }, c.status || ''));
     tb.append(tr);
   });
   document.querySelectorAll('#chan-table th button').forEach((b) => { const on = b.dataset.sort === state.sort; b.setAttribute('aria-sort', on ? (state.dir > 0 ? 'ascending' : 'descending') : 'none'); b.textContent = b.dataset.label + (on ? (state.dir > 0 ? ' ▲' : ' ▼') : ''); });
 }
-async function command(instance, cmd, button) {
+async function command(instance, cmd, button, sub) {   // sub: a check of one subscription, through run?sub=
   if ((cmd === 'stop' || cmd === 'reconnect') && !confirm(cmd + ' on ' + instance + '?')) return;
-  const note = $('#cmd-note'); button.disabled = true; note.className = ''; note.textContent = instance + ': ' + cmd + '…';
-  try { const r = await fetch('api/' + encodeURIComponent(instance) + '/' + cmd, { method: 'POST' }); const j = await r.json().catch(() => ({})); note.textContent = instance + ': ' + (j.result || j.error || ('HTTP ' + r.status)); if (!r.ok) note.className = 'err'; }
+  const note = $('#cmd-note'); button.disabled = true; note.className = ''; note.textContent = instance + ': ' + (sub ? 'check ' + sub : cmd) + '…';
+  try { const r = await fetch('api/' + encodeURIComponent(instance) + '/' + cmd + (sub ? '?sub=' + encodeURIComponent(sub) : ''), { method: 'POST' }); const j = await r.json().catch(() => ({})); note.textContent = instance + ': ' + (j.result || j.error || ('HTTP ' + r.status)); if (!r.ok) note.className = 'err'; }
   catch (e) { note.textContent = instance + ': ' + e.message; note.className = 'err'; }
   button.disabled = false; setTimeout(load, 4000);
 }

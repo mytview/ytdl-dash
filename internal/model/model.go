@@ -35,6 +35,7 @@ type Channel struct {
 // Run is one cron slot, from the wrapper's "Cron started" line to its end line.
 type Run struct {
 	Instance string   `json:"instance"`
+	Sub      string   `json:"sub,omitempty"` // a check of one subscription: its name
 	Start    string   `json:"start"`
 	End      string   `json:"end"`
 	Minutes  *float64 `json:"minutes"`

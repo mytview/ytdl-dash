@@ -14,6 +14,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/mytview/ytdl-dash/internal/model"
 )
 
 // writeFixture lays out a config folder with the sample cron log and three subscriptions, and a library where two of
@@ -174,7 +176,8 @@ type fakeDocker struct {
 	running bool   // the ytdl-sub container
 	subs    string // what `cat /config/subscriptions.yaml` prints inside it
 	execs   map[string][]string
-	cats    int // how many times the subscriptions were read
+	last    []string // the last command created
+	cats    int      // how many times the subscriptions were read
 }
 
 func (f *fakeDocker) serve(t *testing.T) string {
@@ -219,6 +222,7 @@ func (f *fakeDocker) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		json.NewDecoder(r.Body).Decode(&req)
 		id := fmt.Sprintf("exec%d", len(f.execs)+1)
 		f.execs[id] = req.Cmd
+		f.last = req.Cmd
 		json.NewEncoder(w).Encode(map[string]string{"Id": id})
 	case strings.HasPrefix(p, "/exec/") && strings.HasSuffix(p, "/start"):
 		out := "ytdl-sub 2.0\n"
@@ -244,6 +248,12 @@ func (f *fakeDocker) set(running bool) {
 	f.mu.Unlock()
 }
 
+func (f *fakeDocker) lastExec() []string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.last
+}
+
 func (f *fakeDocker) catCount() int {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -257,6 +267,7 @@ func TestThroughTheSocket(t *testing.T) {
 	fd := &fakeDocker{execs: map[string][]string{}, subs: "recent:\n  \"Optimum\": \"https://www.youtube.com/@optimumtech\"\n  \"Fireship\": \"https://www.youtube.com/@Fireship\"\n  \"Dead Channel\": \"https://www.youtube.com/@dead\"\n  \"Fourth\": \"https://www.youtube.com/@fourth\"\n"}
 	cfg.Host = ""
 	cfg.Container, cfg.DockerSocket, cfg.SubsInContainer, cfg.VersionCommand = "ytdlsub-tech", fd.serve(t), "/config/subscriptions.yaml", "ytdl-sub --version"
+	cfg.RunCommand = `sh -c 'bash /config/cron "$@" >> /config/.cron.log 2>&1' cron`
 	svc, err := New(cfg)
 	if err != nil {
 		t.Fatal(err)
@@ -283,6 +294,36 @@ func TestThroughTheSocket(t *testing.T) {
 	if caps := strings.Join(svc.Instance().Capabilities, ","); !strings.Contains(caps, "run") {
 		t.Errorf("capabilities %q, want run with the socket", caps)
 	}
+
+	// a check of one subscription: --match NAME goes on the run command, an unknown name is refused, and the run that
+	// follows carries the name even when the wrapper's marker does not
+	if err := svc.RunNow(ctx, "Nobody"); err == nil {
+		t.Error("a check of an unknown subscription was accepted")
+	}
+	if err := svc.RunNow(ctx, "Fireship"); err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.Join(fd.lastExec(), "|"); got != `sh|-c|bash /config/cron "$@" >> /config/.cron.log 2>&1|cron|--match|Fireship` {
+		t.Errorf("check exec %q", got)
+	}
+	f, _ := os.OpenFile(cfg.LogFile, os.O_APPEND|os.O_WRONLY, 0o644)
+	f.WriteString("Cron started, running ytdl-sub... (2026-10-27T03:10:00Z)\n")
+	f.Close()
+	deadline := time.Now().Add(3 * time.Second)
+	var open *model.Run
+	for time.Now().Before(deadline) && open == nil {
+		if rs := svc.Runs(0); len(rs) > 0 && rs[len(rs)-1].Result == "running" {
+			r := rs[len(rs)-1]
+			open = &r
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	if open == nil || open.Sub != "Fireship" {
+		t.Errorf("the check's run: %+v", open)
+	}
+	if err := svc.RunNow(ctx, ""); err == nil {
+		t.Error("a run was started while one was going")
+	}
 }
 
 func TestShellWords(t *testing.T) {
@@ -291,6 +332,9 @@ func TestShellWords(t *testing.T) {
 		t.Errorf("%q", got)
 	}
 	if got := shellWords(`pkill -TERM -f [y]tdl-sub\ -l`); len(got) != 4 || got[3] != "[y]tdl-sub -l" {
+		t.Errorf("%q", got)
+	}
+	if got := shellWords(`sh -c 'bash /config/cron "$@" >> /config/.cron.log 2>&1' cron`); len(got) != 4 || got[2] != `bash /config/cron "$@" >> /config/.cron.log 2>&1` || got[3] != "cron" {
 		t.Errorf("%q", got)
 	}
 }

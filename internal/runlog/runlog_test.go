@@ -89,6 +89,21 @@ func TestSample(t *testing.T) {
 	}
 }
 
+func TestStartMarkerNamesACheck(t *testing.T) {
+	p := &Parser{}
+	var starts []Event
+	for _, l := range []string{"Cron started, running ytdl-sub... (2026-10-29T10:10:00Z) for \"Jimmy Kimmel\"\n", "Cron started, running ytdl-sub... (2026-10-29T12:10:00Z)\n"} {
+		for _, e := range p.Feed(l) {
+			if e.Kind == RunStarted {
+				starts = append(starts, e)
+			}
+		}
+	}
+	if len(starts) != 2 || starts[0].Name != "Jimmy Kimmel" || starts[0].Time.UTC().Format("15:04") != "10:10" || starts[1].Name != "" {
+		t.Errorf("%+v", starts)
+	}
+}
+
 func TestTailerReplayAndFollow(t *testing.T) {
 	dir := t.TempDir()
 	path := dir + "/cron.log"

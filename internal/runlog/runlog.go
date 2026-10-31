@@ -34,7 +34,7 @@ type Event struct {
 	Time    time.Time // from the marker's own timestamp when it has one, else the parser's clock
 	Result  string    // RunEnded: ok, error, lock, timeout
 	Code    int       // RunEnded error: ytdl-sub's exit code
-	Name    string    // SubscriptionStarted, SummaryRow
+	Name    string    // SubscriptionStarted, SummaryRow; RunStarted: the one subscription a check targeted, else empty
 	Added   int       // SummaryRow, SummaryTotal
 	Changed int
 	Removed int
@@ -47,7 +47,7 @@ type Event struct {
 
 var (
 	ansi         = regexp.MustCompile(`\x1b\[[0-9;]*[A-Za-z]`)
-	reStarted    = regexp.MustCompile(`^Cron started, running ytdl-sub\.\.\.(?: \((\S+)\))?`)
+	reStarted    = regexp.MustCompile(`^Cron started, running ytdl-sub\.\.\.(?: \((\S+)\))?(?: for "(.+)")?`) // the wrapper names a one-subscription check
 	reOK         = regexp.MustCompile(`^ytdl-sub finished OK(?: \((\S+)\))?`)
 	reTimeout    = regexp.MustCompile(`^RUN TIMED OUT:.*?(?:\((\S+)\))?`)
 	reLock       = regexp.MustCompile(`^ytdl-sub skipped: the previous run still holds the lock(?: \((\S+)\))?`)
@@ -93,7 +93,8 @@ func (p *Parser) Feed(raw string) []Event {
 	switch {
 	case reStarted.MatchString(line):
 		p.inSummary = false
-		ev = append(ev, Event{Kind: RunStarted, Time: at(reStarted.FindStringSubmatch(line)[1])})
+		m := reStarted.FindStringSubmatch(line)
+		ev = append(ev, Event{Kind: RunStarted, Time: at(m[1]), Name: m[2]})
 	case reOK.MatchString(line):
 		p.inSummary = false
 		ev = append(ev, Event{Kind: RunEnded, Result: "ok", Time: at(reOK.FindStringSubmatch(line)[1])})

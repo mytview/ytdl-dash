@@ -2,15 +2,17 @@
 # The cron script for ytdl-sub's LinuxServer cron mod, mounted at /config/cron. The mod runs it on CRON_SCHEDULE and once at
 # container start (CRON_RUN_ON_START) and writes its output to /config/.cron.log, which the agent follows. The lines it
 # prints ("Cron started", "finished OK", "RUN TIMED OUT", "skipped", "finished with errors") are the run markers the agent
-# parses, so keep them if you change anything else. "Run now" from the dashboard runs this same script.
+# parses, so keep them if you change anything else. "Run now" from the dashboard runs this same script; a check of one
+# channel runs it with "--match NAME", which it forwards to ytdl-sub and names in its start marker.
 # A run that is still going after 110 minutes is killed (SIGTERM, then SIGKILL two minutes later): ytdl-sub holds a
 # non-blocking lock on /config, so a hung run would otherwise make every later cron slot exit at once, and the
 # instance looks alive while fetching nothing. A successful run touches
 # /config/.last-success, which the container healthcheck in compose.yaml checks for freshness.
 PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-echo "Cron started, running ytdl-sub... ($(date -u +%FT%TZ))"
+match=""; [ "$1" = "--match" ] && match=$2
+echo "Cron started, running ytdl-sub... ($(date -u +%FT%TZ))${match:+ for \"$match\"}"
 cd /config
-timeout -k 2m "${RUN_TIMEOUT_MINUTES:-110}m" ytdl-sub -l verbose --config=config.yaml sub subscriptions.yaml
+timeout -k 2m "${RUN_TIMEOUT_MINUTES:-110}m" ytdl-sub -l verbose --config=config.yaml sub subscriptions.yaml "$@"
 rc=$?
 if [ "$rc" -eq 0 ]; then touch /config/.last-success; echo "ytdl-sub finished OK ($(date -u +%FT%TZ))"
 elif [ "$rc" -eq 124 ] || [ "$rc" -eq 137 ]; then echo "RUN TIMED OUT: ytdl-sub killed after 110 minutes ($(date -u +%FT%TZ)); the lock is free again and the next slot runs"

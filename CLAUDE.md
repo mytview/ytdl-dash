@@ -24,7 +24,10 @@ locally); the dashboard replaces the page's collector.
 ## Decisions already made
 
 - **Sidecar.** The ytdl-sub image is untouched. The only hook is `deploy/instance/cron.sh` installed as `/config/cron`, which
-  prints a marker when a run starts and when it ends. Everything else is read from files and the socket.
+  prints a marker when a run starts and when it ends. Everything else is read from files and the socket. "Run now"
+  and a one-channel check both run the wrapper through the socket, the check with `--match NAME` appended, which the
+  wrapper forwards to ytdl-sub and names in its start marker; the agent also remembers the name it asked for, so a
+  wrapper that forwards without naming still yields a run marked with the subscription.
 - **Disk is the ground truth.** Archives and files give kept, last upload, counts, sizes and channel status. The log
   adds the per-channel verdict and the timings. Added and removed come from ytdl-sub's Download Summary when it prints
   one and from an archive diff when it does not (`Run.Source` is summary, archive or none).
@@ -101,7 +104,9 @@ merged by start time, the saved copy winning when it carries archive-diff counts
 through the socket every minute after a fallback, since the agent often starts before its container; HOST defaults
 to the Docker host's name through the socket, not the agent container's id; the tailer's stop is lock-protected; the
 header pluralises; one agent gets its card and the runs on the top row with the chart full width; the card's
-actions sit in its header as icon buttons, labelled where the card is wider than 34rem; two compose files.
+actions sit in its header as icon buttons, labelled where the card is wider than 34rem; two compose files. `v0.1.2`
+and `v0.1.3`: the card's actions drop to a bottom row in narrow cards, AGENTS takes bare URLs, host and version as a
+footer, dashboard tests. On main after that: a check of one channel from the list (`POST /api/run?sub=NAME`).
 
 Not done:
 

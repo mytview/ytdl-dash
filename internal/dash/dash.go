@@ -350,7 +350,11 @@ func (d *Dash) proxy(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Minute)
 	defer cancel()
-	req, _ := http.NewRequestWithContext(ctx, http.MethodPost, target+"/api/"+cmd, nil)
+	path := target + "/api/" + cmd
+	if r.URL.RawQuery != "" { // run?sub=NAME: a check of one subscription
+		path += "?" + r.URL.RawQuery
+	}
+	req, _ := http.NewRequestWithContext(ctx, http.MethodPost, path, nil)
 	req.Header.Set("Authorization", "Bearer "+d.cfg.Token)
 	resp, err := (&http.Client{Timeout: 5 * time.Minute}).Do(req)
 	if err != nil {

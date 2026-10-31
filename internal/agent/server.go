@@ -25,13 +25,18 @@ func (s *Service) Handler() http.Handler {
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		w.Write([]byte(s.LogTail(intParam(r, "tail", 200)) + "\n"))
 	})
-	mux.HandleFunc("POST /api/run", s.command(func(ctx context.Context) (string, error) { return "run started", s.RunNow(ctx) }))
-	mux.HandleFunc("POST /api/stop", s.command(func(ctx context.Context) (string, error) { return "stop sent", s.StopRun(ctx) }))
-	mux.HandleFunc("POST /api/reconnect", s.command(func(ctx context.Context) (string, error) {
+	mux.HandleFunc("POST /api/run", s.command(func(ctx context.Context, r *http.Request) (string, error) { // ?sub=NAME checks one subscription
+		if sub := strings.TrimSpace(r.URL.Query().Get("sub")); sub != "" {
+			return "check started for " + sub, s.RunNow(ctx, sub)
+		}
+		return "run started", s.RunNow(ctx, "")
+	}))
+	mux.HandleFunc("POST /api/stop", s.command(func(ctx context.Context, _ *http.Request) (string, error) { return "stop sent", s.StopRun(ctx) }))
+	mux.HandleFunc("POST /api/reconnect", s.command(func(ctx context.Context, _ *http.Request) (string, error) {
 		ip, err := s.Reconnect(ctx)
 		return "reconnected, new address " + ip, err
 	}))
-	mux.HandleFunc("POST /api/rescan", s.command(func(ctx context.Context) (string, error) { s.Rescan(); return "rescanned", nil }))
+	mux.HandleFunc("POST /api/rescan", s.command(func(ctx context.Context, _ *http.Request) (string, error) { s.Rescan(); return "rescanned", nil }))
 	return cors(mux)
 }
 
@@ -41,7 +46,7 @@ func (s *Service) All() map[string]any {
 	return map[string]any{"instance": st.Instance, "running": st.Running, "current": s.Current(), "channels": s.Channels(), "runs": s.Runs(200), "daily": s.Daily(30), "meta": st.Meta}
 }
 
-func (s *Service) command(fn func(ctx context.Context) (string, error)) http.HandlerFunc {
+func (s *Service) command(fn func(ctx context.Context, r *http.Request) (string, error)) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if s.cfg.Token == "" {
 			http.Error(w, `{"error":"commands are off: set TOKEN on the agent"}`, http.StatusForbidden)
@@ -53,7 +58,7 @@ func (s *Service) command(fn func(ctx context.Context) (string, error)) http.Han
 		}
 		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Minute)
 		defer cancel()
-		msg, err := fn(ctx)
+		msg, err := fn(ctx, r)
 		if err != nil {
 			writeJSONStatus(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 			return

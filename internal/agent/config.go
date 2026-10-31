@@ -67,7 +67,7 @@ func ConfigFromEnv(version string) (Config, error) {
 	c.Token = env("TOKEN", "")
 	c.Container = env("YTDL_CONTAINER", "")
 	c.DockerSocket = env("DOCKER_SOCKET", "/var/run/docker.sock")
-	c.RunCommand = env("RUN_COMMAND", "sh -c 'bash /config/cron >> /config/.cron.log 2>&1'")
+	c.RunCommand = env("RUN_COMMAND", `sh -c 'bash /config/cron "$@" >> /config/.cron.log 2>&1' cron`) // a check appends --match NAME
 	c.RunUser = env("RUN_USER", "abc")
 	c.StopCommand = env("STOP_COMMAND", "pkill -TERM -f [y]tdl-sub\\ -l")
 	c.VersionCommand = env("VERSION_COMMAND", "ytdl-sub --version")

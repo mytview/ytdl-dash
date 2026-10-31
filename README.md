@@ -12,7 +12,8 @@ dashboard asks the agents. ytdl-dash is an independent project, not affiliated w
 - **Channels**: every subscription with what is on disk, the last run's verdict on it and a status
   (active, quiet, silent, never, failed, unchecked); filter by instance or status, search, sort.
 - **New videos per day**, stacked by instance.
-- **Commands** from the dashboard, when you give the agents a token: run now, stop, reconnect the VPN, rescan.
+- **Commands** from the dashboard, when you give the agents a token: run now, stop, reconnect the VPN, rescan, and a
+  check of one channel out of schedule, from the button next to its name.
 - **Triggers**: a line in ytdl-sub's log fires an action: reconnect gluetun, restart a container, call a webhook,
   send a notification. This is the former [docker-log-watchdog](https://hub.docker.com/r/fbartolini/docker-log-watchdog),
   folded in.
@@ -21,7 +22,7 @@ dashboard asks the agents. ytdl-dash is an independent project, not affiliated w
 
 Two folders from [`deploy/`](deploy/). [`instance/`](deploy/instance/) goes beside each ytdl-sub: `compose.yaml`,
 `cron.sh` and a `.env`. `cron.sh` is the run script ytdl-sub's cron executes, the usual `ytdl-sub sub` with a timeout
-plus the markers the agent reads. The `.env`:
+plus the markers the agent reads; it forwards its arguments to ytdl-sub, which is how one channel gets checked. The `.env`:
 
 ```
 APPDATA=/srv/appdata           # ytdl-sub's config and the agent's state live under <APPDATA>/<INSTANCE>/
@@ -182,7 +183,7 @@ TRIGGERS: "Sign in to confirm => gluetun-reconnect; HTTP Error 429 => notify:htt
 | `STATE_DIR` | `/data` | the agent's run history |
 | `LISTEN` | `:9100` | address of the HTTP API |
 | `DOCKER_SOCKET` | `/var/run/docker.sock` | the Docker socket |
-| `RUN_COMMAND` | `sh -c 'bash /config/cron >> /config/.cron.log 2>&1'` | what "run now" executes in the container |
+| `RUN_COMMAND` | `sh -c 'bash /config/cron "$@" >> /config/.cron.log 2>&1' cron` | what "run now" executes in the container; a check appends `--match NAME` |
 | `RUN_USER` | `abc` | the user it runs as (LinuxServer's) |
 | `STOP_COMMAND` | `pkill -TERM -f [y]tdl-sub\ -l` | what "stop" executes |
 | `VERSION_COMMAND` | `ytdl-sub --version` | how the ytdl-sub version is read |
@@ -206,8 +207,8 @@ TRIGGERS: "Sign in to confirm => gluetun-reconnect; HTTP Error 429 => notify:htt
 ## API
 
 Every agent answers `GET /api/status`, `/api/instance`, `/api/channels`, `/api/runs?limit=`, `/api/daily?days=`,
-`/api/log?tail=`, `/api/all` and `/healthz`; and, with a token, `POST /api/run`, `/api/stop`, `/api/reconnect`,
-`/api/rescan` with `Authorization: Bearer <token>`. The dashboard serves `/data/{instances,channels,runs,daily,meta,summary}.json` (summary is the fleet in one object, for a home dashboard's card)
+`/api/log?tail=`, `/api/all` and `/healthz`; and, with a token, `POST /api/run` (`?sub=<name>` for one channel),
+`/api/stop`, `/api/reconnect`, `/api/rescan` with `Authorization: Bearer <token>`. The dashboard serves `/data/{instances,channels,runs,daily,meta,summary}.json` (summary is the fleet in one object, for a home dashboard's card)
 and `POST /api/<instance>/<command>`.
 
 ## What can break, and what is done about it
