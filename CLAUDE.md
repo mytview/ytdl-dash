@@ -106,7 +106,9 @@ to the Docker host's name through the socket, not the agent container's id; the 
 header pluralises; one agent gets its card and the runs on the top row with the chart full width; the card's
 actions sit in its header as icon buttons, labelled where the card is wider than 34rem; two compose files. `v0.1.2`
 and `v0.1.3`: the card's actions drop to a bottom row in narrow cards, AGENTS takes bare URLs, host and version as a
-footer, dashboard tests. On main after that: a check of one channel from the list (`POST /api/run?sub=NAME`).
+footer, dashboard tests. `v0.1.4` (30 October): `/data/summary.json`, the fleet in one object for a home
+dashboard's card. `v0.1.5` (31 October): a check of one channel from the list (`POST /api/run?sub=NAME`, the run
+button before the channel's name).
 
 Not done:
 
